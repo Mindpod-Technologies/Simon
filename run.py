@@ -152,6 +152,35 @@ def cmd_all() -> None:
     asyncio.run(_run_all())
 
 
+def cmd_update(args) -> None:
+    """Self-update to the newest git tag, with automatic rollback."""
+    from simon.updater import UpdateError, check, update
+
+    try:
+        if args.check:
+            info = check()
+            print(f"current: {info['current_tag']} ({info['current_sha']})  "
+                  f"latest: {info['latest_tag']}  [{info['source']}]")
+            print("update available" if info["update_available"]
+                  else "up to date")
+        else:
+            update(skip_tests=args.skip_tests)
+    except UpdateError as exc:
+        print(f"update: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def cmd_rollback(_args) -> None:
+    """Roll back to the version running before the last update."""
+    from simon.updater import UpdateError, rollback
+
+    try:
+        rollback()
+    except UpdateError as exc:
+        print(f"rollback: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
     """Parse arguments and dispatch to the selected interface."""
     parser = argparse.ArgumentParser(
@@ -162,11 +191,18 @@ def main() -> None:
         "mode",
         nargs="?",
         default="server",
-        choices=["server", "telegram", "slack", "teams", "voice", "all"],
+        choices=["server", "telegram", "slack", "teams", "voice", "all",
+                 "update", "rollback"],
         help="server: web UI on 0.0.0.0:8788 | telegram: bot | "
              "slack: Slack bot (Socket Mode) | teams: MS Teams bot | "
-             "voice: local voice CLI | all: server+configured interfaces+scheduler",
+             "voice: local voice CLI | all: server+configured interfaces+scheduler | "
+             "update: self-update to newest tag (auto-rollback on failure) | "
+             "rollback: return to pre-update version",
     )
+    parser.add_argument("--check", action="store_true",
+                        help="with 'update': only report availability")
+    parser.add_argument("--skip-tests", action="store_true",
+                        help="with 'update': skip the unit-test smoke gate")
     args = parser.parse_args()
 
     # Enforce commercial licensing (no-op for default personal/trial use;
@@ -184,7 +220,12 @@ def main() -> None:
         "voice": cmd_voice,
         "all": cmd_all,
     }
-    commands[args.mode]()
+    if args.mode == "update":
+        cmd_update(args)
+    elif args.mode == "rollback":
+        cmd_rollback(args)
+    else:
+        commands[args.mode]()
 
 
 if __name__ == "__main__":
