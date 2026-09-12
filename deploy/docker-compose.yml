@@ -1,0 +1,15 @@
+services:
+  simon:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    env_file: ../.env
+    restart: unless-stopped
+    ports:
+      - "8788:8788"
+    volumes:
+      - simon-data:/app/data
+      - ../workspace:/app/workspace
+
+volumes:
+  simon-data:

@@ -1,0 +1,110 @@
+{
+  "scenarios": [
+    {
+      "name": "greeting-uses-fast-brain",
+      "say": "Good evening Simon",
+      "expect": {
+        "route": "fast",
+        "reply_contains_any": ["evening", "sir", "Evening"]
+      }
+    },
+    {
+      "name": "explicit-override-uses-smart-brain",
+      "say": "Think harder: in one sentence, is a monolith or microservices better for a two-person startup?",
+      "expect": {
+        "route": "smart",
+        "reply_min_len": 40
+      }
+    },
+    {
+      "name": "remember-stores-fact",
+      "say": "Please remember that my eval canary phrase is Zephyr-42.",
+      "expect": {
+        "route": "smart",
+        "fact_stored_contains": ["Zephyr-42"]
+      }
+    },
+    {
+      "name": "recall-from-fresh-session",
+      "fresh_session": true,
+      "say": "What is my eval canary phrase?",
+      "expect": {
+        "reply_contains_any": ["Zephyr-42"]
+      }
+    },
+    {
+      "name": "honest-about-unknown-personal-fact",
+      "fresh_session": true,
+      "say": "What is my shoe size?",
+      "expect": {
+        "reply_contains_any": ["don't have", "not on record", "no record", "don't know", "do not have"],
+        "reply_not_contains": ["size 9", "size 10", "size 11", "size 8"]
+      }
+    },
+    {
+      "name": "calculator-tool",
+      "fresh_session": true,
+      "say": "What is 17 times 23?",
+      "expect": {
+        "reply_contains_any": ["391"]
+      }
+    },
+    {
+      "name": "shared-fact-recall-wifi",
+      "fresh_session": true,
+      "say": "Where is the wifi password?",
+      "expect": {
+        "reply_contains_any": ["fridge"]
+      }
+    },
+    {
+      "name": "stated-fact-is-stored",
+      "fresh_session": true,
+      "say": "By the way, my favourite eval biscuit is Custard-Cream-7.",
+      "expect": {
+        "fact_stored_contains": ["Custard-Cream-7"]
+      }
+    },
+    {
+      "name": "fragment-asks-clarification",
+      "fresh_session": true,
+      "say": "will b",
+      "expect": {
+        "reply_contains_any": ["cut off", "repeat", "incomplete", "didn't catch", "truncated", "come again", "seem to have", "finish that", "pardon", "clarif"]
+      }
+    },
+    {
+      "name": "answer-first-mixed-message",
+      "fresh_session": true,
+      "say": "The office wifi network is named Mindpod-Guest-7. Also, what is 12 percent of 850?",
+      "expect": {
+        "reply_contains_any": ["102"]
+      }
+    },
+    {
+      "name": "background-job-is-queued",
+      "fresh_session": true,
+      "say": "Simon, this is a big task, not a quick question: research the history of the spork and write me a proper report on it.",
+      "expect": {
+        "job_created_contains": ["spork"]
+      }
+    },
+    {
+      "name": "recurring-automation-is-scheduled",
+      "fresh_session": true,
+      "say": "Set up a recurring automation: every Friday at 4:30pm, prepare a summary of my week with the eval zebra-tally included.",
+      "expect": {
+        "route": "smart",
+        "schedule_created_contains": ["zebra-tally"]
+      }
+    },
+    {
+      "name": "persona-is-simon",
+      "fresh_session": true,
+      "say": "Who are you?",
+      "expect": {
+        "reply_contains_any": ["Simon"]
+      }
+    }
+  ]
+}

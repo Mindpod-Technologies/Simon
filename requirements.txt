@@ -1,0 +1,26 @@
+fastapi
+uvicorn[standard]
+openai
+pydantic-settings
+python-dotenv
+edge-tts
+faster-whisper
+sounddevice
+soundfile
+numpy
+python-telegram-bot>=21
+apscheduler
+duckduckgo-search
+requests
+ics
+beautifulsoup4
+sse-starlette
+pytest
+slack-bolt
+botbuilder-core
+botbuilder-schema
+aiohttp
+cryptography
+playwright
+pyobjc-core  # macOS
+mcp>=2.0

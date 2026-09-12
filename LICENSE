@@ -1,0 +1,83 @@
+Simon Source-Available Commercial License
+==========================================
+
+Copyright (c) the Simon authors. All rights reserved.
+
+This license grants you certain rights to use the Simon software (the
+"Software"). By using, copying, or distributing the Software you accept
+these terms. Plain-language summary: personal and evaluation use is free;
+using the Software to make money from other people requires a purchased
+license key.
+
+1. Definitions
+--------------
+"Personal Use" means use of the Software by an individual for their own
+purposes, or by anyone strictly to evaluate whether to purchase a license.
+
+"Commercial Use" means providing the Software, or access to it, to any
+other person or organization as a paid product or service — including
+selling installations, subscriptions, hosting, consulting packages, or
+white-labeled versions of the Software — or use within an organization in
+exchange for payment tied to the Software.
+
+"License Key" means a cryptographically signed key issued by the Licensor
+upon purchase (see tools/keygen.py and simon/licensing.py).
+
+"Keygen" means the license-key generation tooling and its private signing
+key (tools/keygen.py and any copy of the private key).
+
+2. Grant for Personal and Evaluation Use
+----------------------------------------
+The Licensor grants you a royalty-free, non-exclusive, non-transferable
+license to use, copy, and modify the Software for Personal Use. No License
+Key is required for Personal Use.
+
+3. Commercial Use Requires a Purchased License
+----------------------------------------------
+Commercial Use is permitted only under a valid purchased License Key. The
+scope of Commercial Use (number of seats, white-label rights, support
+level) is defined by the plan purchased ("pro" or "business") and the
+terms of sale. You may not use a License Key beyond its purchased scope,
+and you may not share your License Key publicly.
+
+4. Keygen and Private Key
+-------------------------
+You may not redistribute, publish, or share the Keygen or the private
+signing key with anyone. Generating keys for others, or using leaked or
+self-generated keys to evade Section 3, is a breach of this license.
+
+5. Redistribution
+-----------------
+You may redistribute unmodified copies of the Software's source code only
+if this LICENSE file is included intact. You may not redistribute modified
+versions for Commercial Use except as permitted by a purchased plan.
+Redistribution of the Keygen is prohibited under Section 4.
+
+6. Third-Party Components and Services
+--------------------------------------
+The Software integrates with third-party services (LLM providers,
+Telegram, Google, Home Assistant, and others). Those services are governed
+by their own terms, which you must accept and comply with separately. The
+Licensor provides no third-party API access.
+
+7. No Trademark Rights
+----------------------
+This license grants no rights to the Licensor's names, logos, or
+trademarks. References in documentation to third-party products are
+descriptive only.
+
+8. Termination
+--------------
+Breach of these terms terminates your license automatically. Sections 4
+and 9 survive termination.
+
+9. Disclaimer of Warranty and Limitation of Liability
+-----------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE LICENSOR OR AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE. THIS INCLUDES, WITHOUT LIMITATION, ACTIONS THE
+SOFTWARE TAKES AUTONOMOUSLY VIA ITS TOOLS.

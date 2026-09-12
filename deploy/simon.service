@@ -1,0 +1,18 @@
+[Unit]
+Description=Simon personal AI assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/simon
+EnvironmentFile=/opt/simon/.env
+ExecStart=/opt/simon/.venv/bin/python run.py all
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

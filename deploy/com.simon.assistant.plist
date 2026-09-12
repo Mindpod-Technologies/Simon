@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd LaunchAgent for Simon.
+  __HOME__ is a placeholder: deploy/install_mac.sh renders it with the real
+  home directory (sed s|__HOME__|$HOME|g) before loading. If installing by
+  hand, replace __HOME__ with your absolute home path everywhere below.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.simon.assistant</string>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/simon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/simon/.venv/bin/python</string>
+        <string>run.py</string>
+        <string>all</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/simon/data/logs/simon.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/simon/data/logs/simon.err.log</string>
+</dict>
+</plist>

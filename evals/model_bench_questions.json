@@ -1,0 +1,2822 @@
+[
+{
+"cat": "azure",
+"q": "What Azure service provides managed Kubernetes?",
+"accept": [
+[
+"aks"
+],
+[
+"azure kubernetes service"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Microsoft Entra ID formerly known as?",
+"accept": [
+[
+"azure active directory"
+],
+[
+"azure ad"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service is used for serverless compute functions triggered by events?",
+"accept": [
+[
+"azure functions"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Name the three access tiers of Azure Blob Storage.",
+"accept": [
+[
+"hot",
+"cool",
+"archive"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What Azure service stores secrets, keys, and certificates securely?",
+"accept": [
+[
+"key vault"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is the difference between Azure SQL Database and SQL Server on Azure VMs in one sentence?",
+"accept": [
+[
+"paas"
+],
+[
+"managed"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service provides a fully managed NoSQL database with multiple consistency levels?",
+"accept": [
+[
+"cosmos"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What are Cosmos DB's five consistency levels?",
+"accept": [
+[
+"strong",
+"bounded",
+"session",
+"prefix",
+"eventual"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What Azure feature controls inbound and outbound traffic to network interfaces using rules?",
+"accept": [
+[
+"network security group"
+],
+[
+"nsg"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is an Azure Resource Group?",
+"accept": [
+[
+"container",
+"resources"
+],
+[
+"logical",
+"resources"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which language/tool defines Azure infrastructure declaratively as an alternative to ARM JSON templates?",
+"accept": [
+[
+"bicep"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What Azure service collects, analyzes, and acts on telemetry from cloud and on-premises environments?",
+"accept": [
+[
+"azure monitor"
+],
+[
+"monitor"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Azure Virtual Network (VNet) used for?",
+"accept": [
+[
+"private",
+"network"
+],
+[
+"isolated",
+"network"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service hosts web apps, REST APIs, and mobile backends without managing servers?",
+"accept": [
+[
+"app service"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is the difference between vertical and horizontal scaling in Azure?",
+"accept": [
+[
+"vertical"
+],
+[
+"scale up",
+"scale out"
+],
+[
+"horizontal"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What Azure service provides DDoS protection and a web application firewall for public endpoints?",
+"accept": [
+[
+"front door"
+],
+[
+"application gateway"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Azure AD B2C (now Entra External ID) used for?",
+"accept": [
+[
+"customer",
+"identity"
+],
+[
+"consumer",
+"identity"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service is a managed message broker for decoupling applications, offering queues and topics?",
+"accept": [
+[
+"service bus"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What does Azure Availability Zone provide?",
+"accept": [
+[
+"datacenter",
+"region"
+],
+[
+"fault",
+"isolation"
+],
+[
+"physically separate"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is the Azure equivalent of AWS IAM?",
+"accept": [
+[
+"entra"
+],
+[
+"azure ad",
+"rbac"
+],
+[
+"azure active directory"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service provides container hosting without orchestration, billed per second?",
+"accept": [
+[
+"container instances"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Azure Policy used for?",
+"accept": [
+[
+"governance"
+],
+[
+"enforce",
+"rules"
+],
+[
+"compliance"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service provides a distributed, in-memory cache?",
+"accept": [
+[
+"cache for redis"
+],
+[
+"redis"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What are the three main Azure storage redundancy options within a region and across regions?",
+"accept": [
+[
+"lrs",
+"zrs",
+"grs"
+],
+[
+"locally redundant",
+"zone redundant",
+"geo redundant"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service provides hybrid connectivity between on-premises networks and Azure over a private connection?",
+"accept": [
+[
+"expressroute"
+],
+[
+"vpn gateway"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Azure DevOps primarily used for?",
+"accept": [
+[
+"ci",
+"cd"
+],
+[
+"pipeline"
+],
+[
+"devops"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service ingests and analyzes security events across the enterprise using AI (SIEM)?",
+"accept": [
+[
+"sentinel"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is the difference between Azure Blob Storage and Azure Files?",
+"accept": [
+[
+"object",
+"file share"
+],
+[
+"smb",
+"object"
+],
+[
+"rest",
+"smb"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What Azure service would you use to run a containerized web app with built-in autoscaling and managed certificates, positioned between App Service and AKS?",
+"accept": [
+[
+"container apps"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Microsoft Defender for Cloud?",
+"accept": [
+[
+"security",
+"posture"
+],
+[
+"cloud security",
+"management"
+],
+[
+"cspm"
+]
+]
+},
+{
+"cat": "azure",
+"q": "How does Azure Chargeback / cost visibility work at a basic level \u2014 which tool shows spending by resource group?",
+"accept": [
+[
+"cost management"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is an Azure Virtual Machine Scale Set?",
+"accept": [
+[
+"autoscaling",
+"vm"
+],
+[
+"group",
+"identical",
+"vm"
+]
+]
+},
+{
+"cat": "azure",
+"q": "Which Azure service provides managed PostgreSQL and MySQL?",
+"accept": [
+[
+"azure database for postgresql",
+"mysql"
+],
+[
+"flexible server"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is the purpose of Azure Lighthouse?",
+"accept": [
+[
+"cross-tenant",
+"management"
+],
+[
+"service provider",
+"manage"
+],
+[
+"msp"
+]
+]
+},
+{
+"cat": "azure",
+"q": "What is Azure Arc?",
+"accept": [
+[
+"hybrid",
+"multi-cloud",
+"manage"
+],
+[
+"extend",
+"management",
+"on-premises"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What AWS service provides managed Kubernetes?",
+"accept": [
+[
+"eks"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What are the main S3 storage classes? Name at least four.",
+"accept": [
+[
+"standard",
+"glacier"
+],
+[
+"s3",
+"intelligent-tiering"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between SQS and SNS?",
+"accept": [
+[
+"queue",
+"pub"
+],
+[
+"pull",
+"push"
+],
+[
+"queue",
+"topic"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What AWS service runs code without provisioning servers, billed per invocation?",
+"accept": [
+[
+"lambda"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is an IAM role versus an IAM user?",
+"accept": [
+[
+"assum"
+],
+[
+"temporary",
+"credential"
+],
+[
+"user",
+"role"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between security groups and NACLs in a VPC?",
+"accept": [
+[
+"stateful",
+"stateless"
+],
+[
+"instance",
+"subnet"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides a managed NoSQL key-value database?",
+"accept": [
+[
+"dynamodb"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between RDS and Aurora?",
+"accept": [
+[
+"aurora",
+"mysql",
+"postgres"
+],
+[
+"aurora",
+"compatible"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What does Route 53 do?",
+"accept": [
+[
+"dns"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides infrastructure as code using templates?",
+"accept": [
+[
+"cloudformation"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is an EC2 Auto Scaling Group?",
+"accept": [
+[
+"automatic",
+"instances"
+],
+[
+"scale",
+"instances"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between EBS and instance store?",
+"accept": [
+[
+"persistent",
+"ephemeral"
+],
+[
+"network",
+"attached"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service is a content delivery network?",
+"accept": [
+[
+"cloudfront"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is AWS Organizations used for?",
+"accept": [
+[
+"multiple accounts"
+],
+[
+"multi-account"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between ECS and EKS?",
+"accept": [
+[
+"kubernetes"
+],
+[
+"container",
+"orchestration"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides managed Redis or Memcached?",
+"accept": [
+[
+"elasticache"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What are EC2 Spot Instances?",
+"accept": [
+[
+"spare",
+"capacity",
+"discount"
+],
+[
+"interruptible"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the shared responsibility model in AWS?",
+"accept": [
+[
+"security of the cloud",
+"security in the cloud"
+],
+[
+"aws",
+"customer",
+"responsibility"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service records API calls for auditing?",
+"accept": [
+[
+"cloudtrail"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between CloudWatch and CloudTrail?",
+"accept": [
+[
+"monitor",
+"audit"
+],
+[
+"metrics",
+"api"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides a managed data warehouse?",
+"accept": [
+[
+"redshift"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is an AWS Availability Zone?",
+"accept": [
+[
+"datacenter",
+"region"
+],
+[
+"isolated",
+"location",
+"region"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which service decouples microservices with FIFO and standard message queues?",
+"accept": [
+[
+"sqs"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What does AWS WAF protect against?",
+"accept": [
+[
+"web",
+"exploit"
+],
+[
+"sql injection",
+"xss"
+],
+[
+"layer 7"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between vertical scaling and horizontal scaling on EC2?",
+"accept": [
+[
+"bigger",
+"more"
+],
+[
+"vertical",
+"horizontal"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides object lock / immutability for compliance?",
+"accept": [
+[
+"s3",
+"object lock"
+],
+[
+"s3"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is AWS Direct Connect?",
+"accept": [
+[
+"dedicated",
+"connection",
+"on-premises"
+],
+[
+"private",
+"network",
+"on-premises"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service manages container images (a registry)?",
+"accept": [
+[
+"ecr"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is an ENI in AWS networking?",
+"accept": [
+[
+"elastic network interface"
+],
+[
+"virtual",
+"network",
+"interface"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service would you use for event-driven serverless workflows with state machines?",
+"accept": [
+[
+"step functions"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the difference between S3 and EFS?",
+"accept": [
+[
+"object",
+"file"
+],
+[
+"s3",
+"nfs"
+]
+]
+},
+{
+"cat": "aws",
+"q": "Which AWS service provides DDoS protection automatically at no extra cost?",
+"accept": [
+[
+"shield"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is AWS Systems Manager used for?",
+"accept": [
+[
+"operational",
+"manage"
+],
+[
+"patch",
+"run command"
+],
+[
+"fleet"
+]
+]
+},
+{
+"cat": "aws",
+"q": "How does AWS charge for Lambda?",
+"accept": [
+[
+"request",
+"duration"
+],
+[
+"invocation",
+"gb-second"
+]
+]
+},
+{
+"cat": "aws",
+"q": "What is the purpose of an internet gateway in a VPC?",
+"accept": [
+[
+"internet",
+"vpc"
+],
+[
+"public",
+"access"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What GCP service provides managed Kubernetes?",
+"accept": [
+[
+"gke"
+],
+[
+"google kubernetes engine"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is BigQuery?",
+"accept": [
+[
+"data warehouse",
+"serverless"
+],
+[
+"analytics"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service runs containers serverlessly with automatic scaling to zero?",
+"accept": [
+[
+"cloud run"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the GCP equivalent of AWS Lambda?",
+"accept": [
+[
+"cloud functions"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Name GCP's object storage service and two of its storage classes.",
+"accept": [
+[
+"cloud storage",
+"standard"
+],
+[
+"storage",
+"nearline",
+"coldline"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Pub/Sub used for?",
+"accept": [
+[
+"messaging"
+],
+[
+"publish",
+"subscribe"
+],
+[
+"event"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP database offers global, strongly consistent relational data at scale?",
+"accept": [
+[
+"spanner"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the difference between Compute Engine and App Engine?",
+"accept": [
+[
+"vm",
+"paas"
+],
+[
+"virtual machine",
+"managed"
+],
+[
+"iaas",
+"paas"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "How does GCP organize resources hierarchically?",
+"accept": [
+[
+"organization",
+"folder",
+"project"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is a GCP VPC and how does it differ from AWS VPC scope-wise?",
+"accept": [
+[
+"global"
+],
+[
+"vpc",
+"global",
+"regional"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides a fully managed NoSQL document database for mobile and web apps?",
+"accept": [
+[
+"firestore"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Cloud IAM's basic model: who gets what, where?",
+"accept": [
+[
+"who",
+"role",
+"resource"
+],
+[
+"member",
+"role",
+"resource"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service is used for streaming dataflow / batch data processing based on Apache Beam?",
+"accept": [
+[
+"dataflow"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the GCP service for container image storage?",
+"accept": [
+[
+"artifact registry"
+],
+[
+"container registry"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What does Cloud CDN do?",
+"accept": [
+[
+"content delivery"
+],
+[
+"cache",
+"edge"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides managed MySQL, PostgreSQL, and SQL Server?",
+"accept": [
+[
+"cloud sql"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Vertex AI?",
+"accept": [
+[
+"machine learning",
+"platform"
+],
+[
+"ml",
+"platform"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the difference between GCP regions and zones?",
+"accept": [
+[
+"region",
+"zone"
+],
+[
+"zones",
+"region"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides a managed in-memory Redis or Memcached store?",
+"accept": [
+[
+"memorystore"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Deployment Manager's modern recommended alternative for IaC on GCP?",
+"accept": [
+[
+"terraform"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides logging, monitoring, and tracing (the operations suite)?",
+"accept": [
+[
+"cloud operations"
+],
+[
+"stackdriver"
+],
+[
+"cloud monitoring",
+"cloud logging"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is a preemptible / Spot VM in GCP?",
+"accept": [
+[
+"interruptible",
+"discount"
+],
+[
+"spot",
+"preemptible"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides serverless Spark and Hadoop clusters?",
+"accept": [
+[
+"dataproc"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What does Cloud Armor protect against?",
+"accept": [
+[
+"ddos"
+],
+[
+"waf"
+],
+[
+"web application firewall"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the purpose of Cloud NAT?",
+"accept": [
+[
+"outbound",
+"internet",
+"private"
+],
+[
+"egress",
+"private"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service offers a global anycast load balancer?",
+"accept": [
+[
+"cloud load balancing"
+],
+[
+"global external"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Bigtable best suited for?",
+"accept": [
+[
+"wide-column",
+"nosql"
+],
+[
+"time series",
+"large",
+"throughput"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is Anthos / GKE Enterprise used for?",
+"accept": [
+[
+"hybrid",
+"multi-cloud"
+],
+[
+"kubernetes",
+"on-premises"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "How are GCP projects billed and what links a project to payment?",
+"accept": [
+[
+"billing account"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is a service account in GCP?",
+"accept": [
+[
+"non-human",
+"identity"
+],
+[
+"application",
+"identity"
+],
+[
+"workload"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service provides event-driven orchestration of HTTP-based services (workflow engine)?",
+"accept": [
+[
+"workflows"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What does Cloud Build do?",
+"accept": [
+[
+"ci",
+"build"
+],
+[
+"continuous integration"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is the difference between Firestore Native mode and Datastore mode?",
+"accept": [
+[
+"realtime",
+"mobile"
+],
+[
+"native",
+"datastore"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "Which GCP service lets you run SQL queries directly on files in Cloud Storage without loading them?",
+"accept": [
+[
+"bigquery"
+]
+]
+},
+{
+"cat": "gcp",
+"q": "What is GCP's commitment-based discount called?",
+"accept": [
+[
+"committed use"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is overfitting and name one technique to reduce it.",
+"accept": [
+[
+"overfit",
+"regularization"
+],
+[
+"overfit",
+"dropout"
+],
+[
+"overfit",
+"training data",
+"generalize"
+]
+]
+},
+{
+"cat": "ml",
+"q": "Explain the bias-variance tradeoff in one or two sentences.",
+"accept": [
+[
+"bias",
+"variance"
+],
+[
+"underfit",
+"overfit"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between precision and recall?",
+"accept": [
+[
+"precision",
+"recall",
+"positive"
+],
+[
+"precision",
+"false positive",
+"recall"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is gradient descent?",
+"accept": [
+[
+"gradient",
+"loss",
+"minimum"
+],
+[
+"iterative",
+"parameters"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the learning rate and what happens if it is too high?",
+"accept": [
+[
+"learning rate",
+"overshoot"
+],
+[
+"learning rate",
+"diverge"
+],
+[
+"step",
+"too high"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between L1 and L2 regularization?",
+"accept": [
+[
+"l1",
+"l2"
+],
+[
+"lasso",
+"ridge"
+],
+[
+"sparse",
+"l1"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is cross-validation and why is k-fold used?",
+"accept": [
+[
+"fold",
+"validation"
+],
+[
+"cross-validation",
+"generalization"
+],
+[
+"k-fold"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is an activation function? Name two common ones.",
+"accept": [
+[
+"relu",
+"sigmoid"
+],
+[
+"relu",
+"non-linear",
+"tanh"
+],
+[
+"non-linear",
+"sigmoid",
+"softmax"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is backpropagation?",
+"accept": [
+[
+"gradient",
+"chain rule"
+],
+[
+"backprop",
+"weights",
+"loss"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between supervised and unsupervised learning?",
+"accept": [
+[
+"label",
+"unlabeled"
+],
+[
+"supervised",
+"label",
+"cluster"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is a confusion matrix?",
+"accept": [
+[
+"true positive",
+"false positive"
+],
+[
+"predicted",
+"actual",
+"class"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What does the ROC-AUC score measure?",
+"accept": [
+[
+"true positive rate",
+"false positive rate"
+],
+[
+"threshold",
+"classification",
+"area"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is dropout in neural networks?",
+"accept": [
+[
+"dropout",
+"neurons",
+"regularization"
+],
+[
+"randomly",
+"deactivate"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the vanishing gradient problem and which activation/architecture helps?",
+"accept": [
+[
+"vanishing",
+"gradient",
+"relu"
+],
+[
+"vanishing",
+"residual"
+],
+[
+"sigmoid",
+"vanishing"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is an embedding in machine learning?",
+"accept": [
+[
+"dense",
+"vector",
+"representation"
+],
+[
+"continuous",
+"vector",
+"semantic"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is attention in transformer models?",
+"accept": [
+[
+"attention",
+"query",
+"key",
+"value"
+],
+[
+"attention",
+"relevance",
+"tokens"
+],
+[
+"self-attention"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between a parameter and a hyperparameter?",
+"accept": [
+[
+"learned",
+"set"
+],
+[
+"parameter",
+"hyperparameter",
+"learned"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is batch normalization?",
+"accept": [
+[
+"normaliz",
+"layer",
+"batch"
+],
+[
+"stabilize",
+"training",
+"batch"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between classification and regression?",
+"accept": [
+[
+"class",
+"continuous"
+],
+[
+"categorical",
+"numeric"
+],
+[
+"discrete",
+"continuous"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is transfer learning?",
+"accept": [
+[
+"pre-trained",
+"fine-tun"
+],
+[
+"pretrained",
+"new task"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is data leakage in ML and give one example.",
+"accept": [
+[
+"leakage",
+"target"
+],
+[
+"leak",
+"test",
+"train"
+],
+[
+"future",
+"information",
+"train"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the F1 score?",
+"accept": [
+[
+"harmonic",
+"precision",
+"recall"
+],
+[
+"f1",
+"precision",
+"recall"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is feature engineering?",
+"accept": [
+[
+"features",
+"transform"
+],
+[
+"create",
+"features",
+"raw data"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is a random forest and how does it reduce overfitting compared to a single decision tree?",
+"accept": [
+[
+"ensemble",
+"trees"
+],
+[
+"bagging",
+"random forest"
+],
+[
+"average",
+"trees",
+"variance"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is gradient boosting? Name one popular implementation.",
+"accept": [
+[
+"boosting",
+"xgboost"
+],
+[
+"gradient boosting",
+"lightgbm"
+],
+[
+"sequential",
+"trees",
+"errors",
+"catboost"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the curse of dimensionality?",
+"accept": [
+[
+"dimensions",
+"sparse"
+],
+[
+"high-dimensional",
+"distance",
+"curse"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is PCA used for?",
+"accept": [
+[
+"dimensionality",
+"reduction"
+],
+[
+"principal component",
+"variance"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between online learning and batch learning?",
+"accept": [
+[
+"incremental",
+"batch"
+],
+[
+"online",
+"stream",
+"batch"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is RLHF?",
+"accept": [
+[
+"reinforcement learning",
+"human feedback"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is the difference between a generative and a discriminative model?",
+"accept": [
+[
+"generative",
+"discriminative",
+"distribution"
+],
+[
+"generate",
+"boundary"
+],
+[
+"p(x",
+"generative"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is temperature in LLM sampling?",
+"accept": [
+[
+"temperature",
+"randomness"
+],
+[
+"temperature",
+"probability",
+"distribution"
+],
+[
+"sampling",
+"creativity"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is quantization of a model and why is it used?",
+"accept": [
+[
+"quantization",
+"precision",
+"memory"
+],
+[
+"lower precision",
+"smaller",
+"faster"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is a mixture-of-experts model?",
+"accept": [
+[
+"experts",
+"router"
+],
+[
+"mixture",
+"subset",
+"parameters"
+],
+[
+"moe",
+"sparse"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is fine-tuning versus prompt engineering?",
+"accept": [
+[
+"fine-tun",
+"weights",
+"prompt"
+],
+[
+"train",
+"prompt",
+"weights"
+]
+]
+},
+{
+"cat": "ml",
+"q": "What is a confusion between accuracy and why it fails on imbalanced datasets \u2014 explain in one sentence.",
+"accept": [
+[
+"imbalanced",
+"majority"
+],
+[
+"accuracy",
+"misleading",
+"class"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of x^3 + 2x with respect to x?",
+"accept": [
+[
+"3x^2+2"
+],
+[
+"3x\u00b2+2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of sin(x)?",
+"accept": [
+[
+"cos(x)"
+],
+[
+"cos x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of e^(2x)?",
+"accept": [
+[
+"2e^2x"
+],
+[
+"2e^(2x)"
+],
+[
+"2 e^2x"
+],
+[
+"2*e^(2x)"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of ln(x)?",
+"accept": [
+[
+"1/x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of 2x dx?",
+"accept": [
+[
+"x^2"
+],
+[
+"x\u00b2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of cos(x) dx?",
+"accept": [
+[
+"sin(x)"
+],
+[
+"sin x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the definite integral of x from 0 to 2?",
+"accept": [
+[
+"2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the limit of (sin x)/x as x approaches 0?",
+"accept": [
+[
+"1"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of x^2 * sin(x) using the product rule?",
+"accept": [
+[
+"2x sin",
+"x^2 cos"
+],
+[
+"x(2 sin",
+"cos"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of (2x+1)^3 using the chain rule?",
+"accept": [
+[
+"6(2x+1)^2"
+],
+[
+"6(2x+1)\u00b2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of 1/x?",
+"accept": [
+[
+"-1/x^2"
+],
+[
+"-1/x\u00b2"
+],
+[
+"\u22121/x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the second derivative of x^4?",
+"accept": [
+[
+"12x^2"
+],
+[
+"12x\u00b2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "Evaluate the limit of (3x^2 + x) / x^2 as x approaches infinity.",
+"accept": [
+[
+"3"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of e^x dx?",
+"accept": [
+[
+"e^x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of tan(x)?",
+"accept": [
+[
+"sec^2"
+],
+[
+"sec\u00b2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "Using the quotient rule, what is the derivative of x/(x+1)?",
+"accept": [
+[
+"1/(x+1)^2"
+],
+[
+"1/(x+1)\u00b2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of 1/x dx?",
+"accept": [
+[
+"ln|x|"
+],
+[
+"ln(x)"
+],
+[
+"ln x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "Find the critical points of f(x) = x^2 - 4x + 3.",
+"accept": [
+[
+"x=2"
+],
+[
+"x = 2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of sqrt(x)?",
+"accept": [
+[
+"1/(2\u221ax)"
+],
+[
+"1/(2 sqrt"
+],
+[
+"1/2 x^(-1/2)"
+],
+[
+"1/(2x^(1/2))"
+],
+[
+"x^(-1/2)/2"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the chain rule, stated in one sentence?",
+"accept": [
+[
+"outer",
+"inner",
+"derivative"
+],
+[
+"composite",
+"derivative"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the Fundamental Theorem of Calculus, in one sentence?",
+"accept": [
+[
+"differentiation",
+"integration",
+"inverse"
+],
+[
+"antiderivative",
+"definite integral"
+],
+[
+"f(b)",
+"f(a)"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of x^2 dx evaluated from 0 to 3?",
+"accept": [
+[
+"9"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of cos(3x)?",
+"accept": [
+[
+"-3 sin(3x)"
+],
+[
+"-3sin(3x)"
+],
+[
+"\u22123 sin(3x)"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the limit of (1 + 1/n)^n as n approaches infinity?",
+"accept": [
+[
+"e"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is an inflection point?",
+"accept": [
+[
+"concavity",
+"change"
+],
+[
+"second derivative",
+"sign"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What does it mean for a function to be differentiable at a point?",
+"accept": [
+[
+"derivative",
+"exist"
+],
+[
+"limit",
+"exist",
+"tangent"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of x * e^x?",
+"accept": [
+[
+"e^x (x+1)"
+],
+[
+"e^x(1+x)"
+],
+[
+"(x+1)e^x"
+],
+[
+"e^x + x e^x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the integral of sin(2x) dx?",
+"accept": [
+[
+"-1/2 cos(2x)"
+],
+[
+"-cos(2x)/2"
+],
+[
+"\u2212(1/2)cos(2x)"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "State the mean value theorem in one sentence.",
+"accept": [
+[
+"secant",
+"tangent"
+],
+[
+"average rate",
+"instantaneous",
+"point c"
+],
+[
+"f'(c)"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of a^x (a constant > 0)?",
+"accept": [
+[
+"a^x ln(a)"
+],
+[
+"a^x ln a"
+],
+[
+"ln(a) a^x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the limit of x^2 - 9 over x - 3 as x approaches 3?",
+"accept": [
+[
+"6"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the Taylor series of e^x centered at 0? Give the first four terms.",
+"accept": [
+[
+"1 + x",
+"x^2/2",
+"x^3/6"
+],
+[
+"1+x+x\u00b2/2",
+"x\u00b3/6"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is integration by parts and what formula does it use?",
+"accept": [
+[
+"\u222bu dv",
+"uv"
+],
+[
+"integral of u dv",
+"uv - \u222b"
+],
+[
+"integration by parts",
+"product rule"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is the derivative of ln(5x)?",
+"accept": [
+[
+"1/x"
+]
+]
+},
+{
+"cat": "calculus",
+"q": "What is a local maximum in terms of the first and second derivative tests?",
+"accept": [
+[
+"f'=0",
+"f''<0"
+],
+[
+"first derivative",
+"zero",
+"second derivative",
+"negative"
+]
+]
+},
+{
+"cat": "history",
+"q": "In what year did World War II begin in Europe?",
+"accept": [
+[
+"1939"
+]
+]
+},
+{
+"cat": "history",
+"q": "What event is generally considered the start of World War I?",
+"accept": [
+[
+"franz ferdinand",
+"assassination"
+],
+[
+"archduke",
+"assassination"
+]
+]
+},
+{
+"cat": "history",
+"q": "In what year did the Berlin Wall fall?",
+"accept": [
+[
+"1989"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was the first President of the United States?",
+"accept": [
+[
+"washington"
+]
+]
+},
+{
+"cat": "history",
+"q": "In what year did the American Declaration of Independence get signed?",
+"accept": [
+[
+"1776"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Magna Carta and in what year was it sealed?",
+"accept": [
+[
+"1215",
+"charter"
+],
+[
+"1215",
+"king john"
+]
+]
+},
+{
+"cat": "history",
+"q": "Which empire was ruled by Genghis Khan?",
+"accept": [
+[
+"mongol"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Renaissance and roughly when did it begin?",
+"accept": [
+[
+"rebirth",
+"14th"
+],
+[
+"renaissance",
+"florence",
+"art"
+],
+[
+"14th century",
+"cultural"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who wrote the 95 Theses, sparking the Protestant Reformation?",
+"accept": [
+[
+"martin luther"
+],
+[
+"luther"
+]
+]
+},
+{
+"cat": "history",
+"q": "In what year did the French Revolution begin?",
+"accept": [
+[
+"1789"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Cold War?",
+"accept": [
+[
+"united states",
+"soviet",
+"tension"
+],
+[
+"usa",
+"ussr",
+"ideolog"
+],
+[
+"superpower",
+"nuclear",
+"proxy"
+]
+]
+},
+{
+"cat": "history",
+"q": "Which ancient civilization built the pyramids at Giza?",
+"accept": [
+[
+"egypt"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was the first Roman emperor?",
+"accept": [
+[
+"augustus"
+],
+[
+"octavian"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Silk Road?",
+"accept": [
+[
+"trade",
+"asia",
+"europe"
+],
+[
+"trade routes",
+"china"
+]
+]
+},
+{
+"cat": "history",
+"q": "In what year did humans first land on the Moon, and which mission?",
+"accept": [
+[
+"1969",
+"apollo 11"
+]
+]
+},
+{
+"cat": "history",
+"q": "What caused the fall of the Western Roman Empire (one widely cited factor)?",
+"accept": [
+[
+"barbarian",
+"invasion"
+],
+[
+"germanic",
+"decline"
+],
+[
+"overexpansion",
+"economic"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Industrial Revolution and where did it begin?",
+"accept": [
+[
+"britain",
+"machine"
+],
+[
+"england",
+"steam",
+"manufactur"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was Nelson Mandela and why is he significant?",
+"accept": [
+[
+"apartheid",
+"south africa",
+"president"
+],
+[
+"anti-apartheid"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Treaty of Versailles?",
+"accept": [
+[
+"world war i",
+"germany",
+"peace"
+],
+[
+"wwi",
+"ended",
+"germany"
+]
+]
+},
+{
+"cat": "history",
+"q": "Which war was fought between the North and South in the United States, and in what years?",
+"accept": [
+[
+"civil war",
+"1861",
+"1865"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Ottoman Empire's capital city after 1453?",
+"accept": [
+[
+"constantinople"
+],
+[
+"istanbul"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was Joan of Arc?",
+"accept": [
+[
+"french",
+"maid",
+"orleans"
+],
+[
+"peasant",
+"france",
+"hundred years"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Black Death and roughly when did it strike Europe?",
+"accept": [
+[
+"plague",
+"1347"
+],
+[
+"bubonic",
+"14th century"
+],
+[
+"plague",
+"1346"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Boston Tea Party a protest against?",
+"accept": [
+[
+"tax",
+"tea",
+"britain"
+],
+[
+"taxation without representation"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who discovered penicillin and in what year?",
+"accept": [
+[
+"fleming",
+"1928"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the significance of the Battle of Hastings in 1066?",
+"accept": [
+[
+"norman",
+"england",
+"william"
+],
+[
+"conquest",
+"england"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Marshall Plan?",
+"accept": [
+[
+"rebuild",
+"europe",
+"world war ii"
+],
+[
+"aid",
+"europe",
+"post-war"
+],
+[
+"recovery",
+"europe",
+"wwii"
+]
+]
+},
+{
+"cat": "history",
+"q": "Which civilization gave us the first known writing system, cuneiform?",
+"accept": [
+[
+"sumer"
+],
+[
+"mesopotamia"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Cuban Missile Crisis?",
+"accept": [
+[
+"1962",
+"missiles",
+"cuba",
+"soviet"
+],
+[
+"kennedy",
+"nuclear",
+"cuba"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was Cleopatra?",
+"accept": [
+[
+"egypt",
+"pharaoh",
+"ptolemaic"
+],
+[
+"last",
+"egypt",
+"ruler"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the Meiji Restoration?",
+"accept": [
+[
+"japan",
+"moderniz",
+"emperor"
+],
+[
+"japan",
+"1868"
+]
+]
+},
+{
+"cat": "history",
+"q": "What triggered the United States' entry into World War II?",
+"accept": [
+[
+"pearl harbor"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was apartheid?",
+"accept": [
+[
+"racial",
+"segregation",
+"south africa"
+]
+]
+},
+{
+"cat": "history",
+"q": "Who was Alexander the Great's tutor?",
+"accept": [
+[
+"aristotle"
+]
+]
+},
+{
+"cat": "history",
+"q": "What was the printing press's inventor's name and roughly when did he introduce it in Europe?",
+"accept": [
+[
+"gutenberg",
+"1440"
+],
+[
+"gutenberg",
+"15th century"
+]
+]
+}
+]

@@ -1,0 +1,10 @@
+# Runtime / customer-local state — never commit.
+.env
+mcp.json
+.venv/
+data/
+workspace/
+bin/
+__pycache__/
+*.pyc
+.DS_Store
