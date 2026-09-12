@@ -17,7 +17,7 @@ Turn a research question into a grounded, cited report.
    - Lead with the answer/conclusion in 2–3 sentences.
    - Then findings grouped by theme, each claim carrying its source name.
    - A "Conflicts & caveats" section when sources disagree or data is stale.
-5. **Save** — write the report to `workspace/research/<topic>-<date>.md`
+5. **Save** — write the report to `research/<topic>-<date>.md`
    using the file tools, with a source list (title + URL) at the end.
 6. **Reply** — give the user the 2–3 sentence conclusion, the file path,
    and offer to go deeper on any thread.

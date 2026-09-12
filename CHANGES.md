@@ -988,3 +988,31 @@ discovery, custom-override precedence, index rendering, aux files,
 registry on/off). Live: "give me my daily briefing" → routed
 gpt-oss:20b (`matches skill 'daily-briefing'`) → called `load_skill` →
 returned a briefing in the skill's exact format.
+
+## 34. Productivity skill library (2026-09-12)
+
+Six more built-in skills join the original three — Simon now ships with a
+9-skill productivity library out of the box:
+
+- **email-triage** — inbox scan → Needs-you / FYI / Noise, reply drafts on
+  request (needs IMAP/SMTP configured; degrades honestly when not)
+- **weekly-review** — GTD-style look-back / open-loops / plan-the-week
+  conversation, saved per week for continuity
+- **document-review** — full-document critique with verdict, severity-
+  ordered issues, concrete fixes; revised copies never overwrite originals
+- **project-planner** — goal → milestones → tasks → critical path → dates,
+  with opt-in reminder scheduling
+- **decision-memo** — options scored on the criteria that matter, key
+  uncertainty named, and an actual recommendation (no "it depends")
+- **follow-up-tracker** — "waiting on" capture with chase reminders,
+  oldest-first reviews, clean closure
+
+Plus `tests/test_builtin_skills.py`: a guard test that parses every
+shipped skill and rejects stubs, missing descriptions, or duplicate names.
+
+**Live verification caught a real authoring bug:** the decision-memo test
+run saved to `workspace/decisions/…` INSIDE the workspace, producing
+`workspace/workspace/decisions/…` — the write_file tool is already
+workspace-confined, so skill paths must be workspace-relative. All six
+skills fixed; the model had followed its instructions perfectly (the
+procedure was wrong, not the brain — a good omen for the skill system).

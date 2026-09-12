@@ -19,7 +19,7 @@ into clean minutes.
    - **Action items** — table: owner → task → due date. Use "(unassigned)"
      or "(no date)" when the transcript doesn't say.
 3. **Open questions** — list anything raised but not resolved.
-4. **Save** — write to `workspace/meetings/<date>-<topic>.md` via the file
+4. **Save** — write to `meetings/<date>-<topic>.md` via the file
    tools.
 5. **Reply** — the summary plus the action-item count and file path; offer
    to set reminders for any dated action items.
