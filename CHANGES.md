@@ -931,3 +931,29 @@ cloud config demoted to a commented alternative.
 **Testing:** bash -n clean; dry-run and full sandbox runs in a temp
 SIMON_DIR (caught and fixed: bash 3.2 lacks ${var,,} — macOS ships 3.2;
 wizard .env verified key-by-key). Live services healthy after testing.
+
+## 32. Self-update mechanism: `run.py update` / `run.py rollback` (2026-09-12)
+
+Productization gap #2: updates used to mean manual git pulls and service
+restarts. Simon now updates himself — this very section shipped as the
+first live test of the mechanism.
+
+- **The repo is now git** (it wasn't): `.gitignore` keeps runtime state
+  (.env, data/, workspace/, mcp.json, bin/, .venv/) out of version
+  control; initial import tagged `v1.0.0`.
+- **`simon/updater.py`** — semver-tag based: `fetch` (origin when
+  present, local tags otherwise), pick newest tag, record a rollback
+  point in `data/update-state.json`, checkout, refresh dependencies only
+  if requirements.txt changed, run the FULL unit-test suite as a smoke
+  gate (scratch cwd + PYTHONPATH, never touches live data), restart both
+  launchd services, then poll the web health endpoint for 45 s.
+- **Automatic rollback** — any failure after checkout (deps, tests,
+  health) restores the previous commit and restarts; `run.py rollback`
+  does the same on demand, days later.
+- **CLI**: `python run.py update [--check] [--skip-tests]` and
+  `python run.py rollback`. Preflight refuses to run with uncommitted
+  tracked changes, protecting customer customizations.
+
+**Live validation on this machine:** v1.1.0 → v1.1.1 real update cycle
+(checkout, dependency check, 135-test gate, service restart, health
+check), followed by a real rollback and re-update. All green.
