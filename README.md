@@ -27,6 +27,10 @@ reached securely over Tailscale.
   reminders through Telegram.
 - **Plugins** — drop a `.py` file into `plugins/` and its tools register
   automatically.
+- **Skills** — drop a `SKILL.md` into `skills/` (built-in) or `data/skills/`
+  (yours, survives updates) and Simon follows its procedure when a request
+  matches: index in the system prompt, full procedure via the `load_skill`
+  tool. Ships with daily-briefing, web-research, and meeting-notes.
 
 ## Architecture
 

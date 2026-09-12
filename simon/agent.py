@@ -574,6 +574,16 @@ class Agent:
             lines = "\n".join(f"- {k}: {v}" for k, v in facts[:5])
             system_prompt += ("\n\nPossibly relevant remembered facts "
                               "(use naturally if pertinent):\n" + lines)
+        # Skills index: name + one-liner for each installed skill. The model
+        # loads the full procedure via the load_skill tool on a match.
+        try:
+            from . import skills as skills_mod
+            if getattr(self.settings, "simon_skills_enabled", True):
+                installed = skills_mod.discover()
+                if installed:
+                    system_prompt += "\n\n" + skills_mod.render_index(installed)
+        except Exception:  # pragma: no cover - skills must never break a turn
+            pass
         # RAG: surface relevant document chunks the same deterministic way.
         # A filename mention ("review test-brief.txt") injects that document
         # directly — semantic search is unreliable for about-the-document

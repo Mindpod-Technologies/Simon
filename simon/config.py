@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # MCP client (connect to Model Context Protocol servers listed in a
     # Claude-Desktop-style mcp.json; their tools appear as mcp_<server>_<tool>)
     simon_mcp_enabled: bool = True
+    # Skills: drop-in SKILL.md instruction packs (repo skills/ = built-in,
+    # data/skills/ = customer, survives updates). The load_skill tool and a
+    # system-prompt index are only registered when this is true.
+    simon_skills_enabled: bool = True
     simon_mcp_config: str = ""  # default: mcp.json in the working directory
     simon_mcp_call_timeout: int = 120
     simon_mcp_start_timeout: int = 30

@@ -957,3 +957,34 @@ first live test of the mechanism.
 **Live validation on this machine:** v1.1.0 → v1.1.1 real update cycle
 (checkout, dependency check, 135-test gate, service restart, health
 check), followed by a real rollback and re-update. All green.
+
+## 33. Skills system — Simon learns workflows from a file (2026-09-12)
+
+The Kimi Work/Claude pattern, adapted for a local two-brain assistant:
+drop-in SKILL.md instruction packs that teach Simon procedures without
+code changes. This is the ecosystem play from the product roadmap.
+
+- **Format** — a directory with `SKILL.md`: minimal `key: value`
+  frontmatter (name, description) + a Markdown procedure. Dependency-free
+  20-line parser; no PyYAML. Skills may bundle aux files (templates,
+  checklists) which load_skill lists.
+- **Two tiers** — `skills/` (built-in, versioned with releases) and
+  `data/skills/` (customer skills — data/ is gitignored, so they survive
+  `run.py update`). Same name → customer overrides vendor.
+- **Discovery & use** — a compact index (name + one-liner) is injected
+  into the system prompt each turn (30 s cache); on a match the model
+  calls the new `load_skill` tool, receives the full procedure fresh
+  from disk, and follows it. `SIMON_SKILLS_ENABLED=false` disables.
+- **Router integration** — naming a skill ("daily briefing") now routes
+  to the smart brain automatically (`matches skill '...'`): the first
+  live test proved the fast 8B acknowledges skill requests WITHOUT
+  calling load_skill, the same tool-discipline gap that motivated the
+  memory/scheduling keywords.
+- **Ships with 3 built-in skills**: daily-briefing, web-research,
+  meeting-notes — real workflows that also serve as format examples.
+
+**Validation:** 145/145 unit tests (10 new: frontmatter parsing,
+discovery, custom-override precedence, index rendering, aux files,
+registry on/off). Live: "give me my daily briefing" → routed
+gpt-oss:20b (`matches skill 'daily-briefing'`) → called `load_skill` →
+returned a briefing in the skill's exact format.

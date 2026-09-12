@@ -203,6 +203,29 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
     except Exception as exc:  # noqa: BLE001
         log.warning("MCP tools unavailable: %s", exc)
 
+    if getattr(settings, "simon_skills_enabled", True):
+        try:
+            from .. import skills as skills_mod
+
+            registry.register(Tool(
+                name="load_skill",
+                description=(
+                    "Load the full procedure for a named skill. Call this "
+                    "FIRST when the user's request matches a skill listed in "
+                    "the system prompt, then follow the returned procedure."),
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string",
+                                 "description": "skill name from the index"},
+                    },
+                    "required": ["name"],
+                },
+                func=lambda name: skills_mod.load_body(name),
+            ))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("skills unavailable: %s", exc)
+
     load_plugins(registry)
 
     if exclude:

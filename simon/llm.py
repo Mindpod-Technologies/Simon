@@ -78,6 +78,17 @@ def classify_turn(user_text: str, history_len: int,
         if kw in low:
             return True, f"complex-task keyword ('{kw.strip()}')"
 
+    # Skill-shaped requests: naming an installed skill means a multi-step
+    # tool procedure is expected — the fast model acknowledges these without
+    # calling load_skill; the smart model follows through.
+    try:
+        from . import skills as skills_mod
+        for skill in skills_mod.discover():
+            if skill.name in low or skill.name.replace("-", " ") in low:
+                return True, f"matches skill '{skill.name}'"
+    except Exception:  # noqa: BLE001 - skills must never break routing
+        pass
+
     # Declarative personal-fact statements ("my email is …", "your address
     # is …") carry durable facts but no memory keyword. The fast model
     # acknowledges these without calling remember_fact — route to the smart
