@@ -174,4 +174,11 @@ def create_app(settings) -> FastAPI:
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"
     )
+
+    # Settings page + API (SPEC.md "Settings Surface").
+    try:
+        from simon import settings_api
+        settings_api.register(app, settings)
+    except Exception:  # noqa: BLE001
+        log.exception("settings API unavailable")
     return app

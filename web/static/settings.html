@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIMON · Settings</title>
+<style>
+  :root { --bg:#0a0e14; --panel:#111822; --line:#1e2a38; --txt:#c9d6e3;
+          --dim:#5c7186; --accent:#4fd1c5; --warn:#f6ad55; --bad:#fc8181; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--txt);
+         font:14px/1.55 -apple-system,"Segoe UI",sans-serif; }
+  header { border-bottom:1px solid var(--line); padding:14px 28px;
+           display:flex; align-items:center; gap:16px; position:sticky;
+           top:0; background:var(--bg); z-index:10; }
+  h1 { color:var(--accent); letter-spacing:.35em; font-size:16px;
+       font-family:"SF Mono",Menlo,monospace; }
+  h1 small { color:var(--dim); letter-spacing:.1em; font-size:11px; margin-left:10px; }
+  nav a { color:var(--dim); text-decoration:none; font-size:13px; }
+  nav a:hover, nav a.on { color:var(--accent); }
+  main { max-width:880px; margin:0 auto; padding:28px; }
+  section { background:var(--panel); border:1px solid var(--line);
+            border-radius:12px; padding:22px 24px; margin-bottom:22px; }
+  h2 { color:#e8f0f7; font-size:15px; margin-bottom:16px; }
+  .row { display:grid; grid-template-columns:240px 1fr; gap:14px;
+         align-items:center; padding:9px 0; border-bottom:1px solid #16202c; }
+  .row:last-child { border-bottom:0; }
+  label { color:var(--dim); font-size:13px; }
+  label .help { display:block; font-size:11px; color:#3d5468; margin-top:2px; }
+  input[type=text], input[type=password], select, textarea {
+    width:100%; background:#0d131c; border:1px solid var(--line);
+    border-radius:8px; color:#e8f0f7; padding:8px 11px; font-size:13px;
+    font-family:"SF Mono",Menlo,monospace; outline:none; }
+  input:focus, textarea:focus { border-color:rgba(79,209,197,.5); }
+  input::placeholder { color:#3d5468; }
+  textarea { min-height:340px; resize:vertical; }
+  .toggle { position:relative; width:40px; height:22px; appearance:none;
+            background:#1e2a38; border-radius:11px; cursor:pointer;
+            transition:background .15s; flex-shrink:0; }
+  .toggle:checked { background:var(--accent); }
+  .toggle::after { content:""; position:absolute; top:3px; left:3px;
+                   width:16px; height:16px; border-radius:50%;
+                   background:#c9d6e3; transition:left .15s; }
+  .toggle:checked::after { left:21px; background:#0a0e14; }
+  .actions { display:flex; gap:12px; align-items:center; margin-top:6px; }
+  button { background:var(--accent); color:#0a0e14; border:0; border-radius:8px;
+           padding:9px 18px; font-size:13px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--txt);
+                 border:1px solid var(--line); }
+  button:disabled { opacity:.45; cursor:default; }
+  .msg { font-size:12px; font-family:"SF Mono",Menlo,monospace; }
+  .msg.ok { color:var(--accent); } .msg.warn { color:var(--warn); }
+  .msg.err { color:var(--bad); }
+  .ver { font-family:"SF Mono",Menlo,monospace; font-size:13px;
+         display:flex; gap:22px; align-items:center; flex-wrap:wrap; }
+  .ver b { color:#e8f0f7; }
+  .pill { font-size:10px; letter-spacing:.12em; border:1px solid rgba(79,209,197,.4);
+          color:var(--accent); border-radius:4px; padding:2px 7px; }
+  .pill.warn { border-color:rgba(246,173,85,.4); color:var(--warn); }
+  .note { color:#3d5468; font-size:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SIMON<small>SETTINGS</small></h1>
+  <nav style="margin-left:auto;display:flex;gap:18px">
+    <a href="/">Chat</a><a href="/settings" class="on">Settings</a>
+    <a href="http://localhost:8789/" target="_blank">Monitor</a>
+  </nav>
+</header>
+<main id="main"><p style="color:var(--dim)">loading…</p></main>
+
+<script>
+const main = document.getElementById('main');
+const dirty = new Map();   // key -> new value (only changed fields)
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+function field(def) {
+  const help = def.help ? `<span class="help">${esc(def.help)}</span>` : '';
+  let input;
+  if (def.type === 'toggle') {
+    input = `<input type="checkbox" class="toggle" data-key="${def.key}" ${def.value==='true'?'checked':''}>`;
+  } else if (def.type === 'password') {
+    input = `<input type="password" data-key="${def.key}" placeholder="${def.set ? esc(def.value)+' (set — type to replace)' : 'not set'}" value="">`;
+  } else {
+    input = `<input type="text" data-key="${def.key}" value="${esc(def.value)}" placeholder="${def.set?'':'not set'}">`;
+  }
+  return `<div class="row"><label>${esc(def.label)}${help}</label>${input}</div>`;
+}
+
+async function load() {
+  const [cfg, ver, models] = await Promise.all([
+    fetch('/api/settings').then(r=>r.json()),
+    fetch('/api/settings/version').then(r=>r.json()),
+    fetch('/api/settings/ollama_models').then(r=>r.json()).catch(()=>({models:[]})),
+  ]);
+  let html = '';
+
+  // Updates & license status block
+  html += `<section><h2>Updates</h2><div class="ver">
+    <span>current <b>${esc(ver.current)}</b></span>
+    <span>latest <b>${esc(ver.latest)}</b></span>
+    ${ver.update_available ? '<span class="pill warn">UPDATE AVAILABLE</span>' : '<span class="pill">UP TO DATE</span>'}
+    <button class="ghost" id="recheck">Re-check</button>
+    <span class="msg" id="ver-msg"></span></div>
+    <p class="note">Updates run <code>run.py update</code> on the host: test gate, restart, automatic rollback. Settings changes below take effect after a restart.</p></section>`;
+
+  for (const [section, defs] of Object.entries(cfg.sections)) {
+    if (section === 'License') continue;   // rendered with license block below
+    html += `<section><h2>${esc(section)}</h2>` + defs.map(field) + `</section>`;
+  }
+
+  // License
+  const lic = (cfg.sections['License']||[]).map(field).join('');
+  html += `<section><h2>License</h2>${lic}</section>`;
+
+  // Ollama models (informational picker aid)
+  if (models.models.length) {
+    html += `<section><h2>Installed local models</h2><div class="ver" style="flex-direction:column;align-items:flex-start;gap:6px">` +
+      models.models.map(m=>`<span class="msg ok">${esc(m)}</span>`).join('') +
+      `<p class="note">Copy a name into Smart/Fast model above. Pull new ones with <code>ollama pull &lt;name&gt;</code>.</p></div></section>`;
+  }
+
+  // Advanced raw editor
+  const raw = await fetch('/api/settings/raw').then(r=>r.json());
+  html += `<section><h2>Advanced — raw .env</h2>
+    <textarea id="raw">${esc(raw.content)}</textarea>
+    <div class="actions"><button class="ghost" id="save-raw">Save raw .env</button>
+    <span class="msg" id="raw-msg"></span></div>
+    <p class="note">Validated line-by-line before saving. A backup is written to .env.bak on every save.</p></section>`;
+
+  // Save bar
+  html += `<section><div class="actions">
+    <button id="save">Save changes</button>
+    <button class="ghost" id="restart" disabled>Restart Simon</button>
+    <span class="msg" id="save-msg"></span></div></section>`;
+
+  main.innerHTML = html;
+  wire();
+}
+
+function wire() {
+  main.querySelectorAll('input[data-key]').forEach(el => {
+    el.addEventListener('change', () => {
+      const v = el.type === 'checkbox' ? String(el.checked) : el.value;
+      if (el.type === 'password' && v === '') dirty.delete(el.dataset.key);
+      else dirty.set(el.dataset.key, v);
+    });
+  });
+
+  document.getElementById('save').onclick = async (e) => {
+    const msg = document.getElementById('save-msg');
+    if (!dirty.size) { msg.className='msg warn'; msg.textContent='nothing changed'; return; }
+    e.target.disabled = true;
+    const res = await fetch('/api/settings', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({updates: Object.fromEntries(dirty)})});
+    const data = await res.json();
+    e.target.disabled = false;
+    if (res.ok) {
+      msg.className='msg ok'; msg.textContent=`saved ${data.saved.length} setting(s) — restart to apply`;
+      document.getElementById('restart').disabled = false;
+      dirty.clear();
+    } else { msg.className='msg err'; msg.textContent = data.error || 'save failed'; }
+  };
+
+  document.getElementById('restart').onclick = async (e) => {
+    e.target.disabled = true;
+    await fetch('/api/settings/restart', {method:'POST'});
+    const msg = document.getElementById('save-msg');
+    msg.className='msg ok'; msg.textContent='restarting — back in a few seconds';
+    setTimeout(()=>location.reload(), 9000);
+  };
+
+  document.getElementById('recheck').onclick = () => load();
+
+  document.getElementById('save-raw').onclick = async () => {
+    const msg = document.getElementById('raw-msg');
+    const res = await fetch('/api/settings/raw', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({content: document.getElementById('raw').value})});
+    const data = await res.json();
+    if (res.ok) { msg.className='msg ok'; msg.textContent='saved — restart to apply';
+      document.getElementById('restart').disabled = false; }
+    else { msg.className='msg err'; msg.textContent = data.error || 'save failed'; }
+  };
+}
+
+load().catch(e => { main.innerHTML = `<p class="msg err">failed to load settings: ${e}</p>`; });
+</script>
+</body>
+</html>

@@ -1090,3 +1090,26 @@ Rebuild any time: `cd desktop && npm run dist:mac / dist:win`.
 
 Installers rebuilt as v1.4.1 (Mac DMG 94 MB, Windows x64 78 MB + arm64
 83 MB) with the new first-run; DMG mount-verified.
+
+
+## 38. Settings page + API (v1.5.0) — 2026-09-13
+
+The settings surface specced in §37 is now real.
+
+- `simon/settings_api.py` — whitelisted SETTING_DEFS (Brain / Channels /
+  Voice / Safety / License sections), env parser that preserves comments
+  and key order, `.env.bak` backup before every write, secrets masked to
+  last-4 in all API responses, dirty-field-only saves from the UI.
+- Routes: `GET /settings`, `GET/POST /api/settings`,
+  `GET /api/settings/ollama_models` (live list from local Ollama),
+  `GET /api/settings/version`, `POST /api/settings/restart` (1.5 s delayed
+  launchd kickstart so the response flushes first), `GET/POST
+  /api/settings/raw` (Advanced raw .env editor).
+- `web/static/settings.html` — dark-theme page with per-section forms,
+  masked-secret placeholders ("••••••••XXXX (set — type to change)"),
+  model pickers populated from installed Ollama models, update check +
+  one-click update card, restart button. Nav link added to the chat page
+  header.
+- 4 new tests (`tests/test_settings_api.py`); suite at 152 passing.
+- Verified live: `/settings` renders all 8 sections with secrets masked;
+  chat/Slack/Telegram unaffected by the restart flow.
