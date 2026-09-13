@@ -1,4 +1,12 @@
+import { useState } from 'react'
+
 const TEAL = '#4fd1c5'
+
+// Waitlist endpoint: create a free form at formspree.io (or any form
+// backend) and paste its URL here, e.g. https://formspree.io/f/abcdwxyz
+// Empty = the form falls back to opening the visitor's email client.
+const WAITLIST_ENDPOINT = ''
+const WAITLIST_EMAIL = 'waitlist@mindpodtech.com'
 
 const FEATURES = [
   {
@@ -268,6 +276,58 @@ function Faq() {
   )
 }
 
+function Waitlist() {
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!email.includes('@')) return
+    if (!WAITLIST_ENDPOINT) {
+      window.location.href = `mailto:${WAITLIST_EMAIL}?subject=Simon Work waitlist&body=Add me: ${encodeURIComponent(email)}`
+      setState('done')
+      return
+    }
+    setState('sending')
+    try {
+      const res = await fetch(WAITLIST_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      setState(res.ok ? 'done' : 'error')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <section className="border-t border-[#1e2a38]">
+      <div className="max-w-2xl mx-auto px-6 py-20 text-center">
+        <p className="font-mono text-xs tracking-[0.35em] text-[#4fd1c5] mb-4">EARLY ACCESS</p>
+        <h2 className="text-3xl font-semibold text-[#e8f0f7] tracking-tight">Hire Simon first.</h2>
+        <p className="mt-3 text-[#7d93a8]">Design-partner onboarding opens soon. Leave your email — one message when it's your turn, nothing else.</p>
+        {state === 'done' ? (
+          <p className="mt-8 font-mono text-sm text-[#4fd1c5]">✓ You're on the list. Simon will be in touch.</p>
+        ) : (
+          <form onSubmit={submit} className="mt-8 flex gap-3 max-w-md mx-auto">
+            <input
+              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@company.com"
+              className="flex-1 rounded-lg border border-[#1e2a38] bg-[#0d131c] px-4 py-3 text-sm text-[#e8f0f7] placeholder-[#3d5468] outline-none focus:border-[#4fd1c5]/60"
+            />
+            <button type="submit" disabled={state === 'sending'}
+              className="px-6 py-3 rounded-lg bg-[#4fd1c5] text-[#0a0e14] text-sm font-medium hover:bg-[#63e0d0] transition-colors disabled:opacity-50">
+              {state === 'sending' ? '…' : 'Join'}
+            </button>
+          </form>
+        )}
+        {state === 'error' && <p className="mt-3 text-sm text-[#f6ad55]">Something hiccuped — try again in a moment.</p>}
+      </div>
+    </section>
+  )
+}
+
 function Footer() {
   return (
     <footer className="border-t border-[#1e2a38]">
@@ -296,6 +356,7 @@ export default function Home() {
       <Features />
       <HowItWorks />
       <Pricing />
+      <Waitlist />
       <Faq />
       <Footer />
     </div>

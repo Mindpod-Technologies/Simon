@@ -186,3 +186,41 @@ requests ics beautifulsoup4 sse-starlette pytest
 
 ## Done criteria
 All files present, `python -m pytest tests` passes in a clean venv, README has Mac Mini + VPS deploy sections, deploy scripts syntactically valid (bash -n), Dockerfile builds conceptually (static review).
+
+## Settings Surface (Simon Work settings menu — design contract)
+
+Principles: every setting editable in the UI must (a) write through to
+`.env` with a comment preserved, (b) take effect on restart (offer a
+"Restart Simon" button after saves that need it), and (c) never display
+secrets in full — mask tokens, show last 4 chars.
+
+Sections, in order of importance to a new customer:
+
+1. **Brain (models)**
+   - Provider: Local (Ollama) / OpenAI-compatible cloud endpoint
+   - Smart model: free text + "pull" button for Ollama models
+     (default gpt-oss:20b)
+   - Fast model + router on/off (default qwen3:8b, on)
+   - Reasoning effort: none/low/medium (per-turn quality/speed tradeoff)
+   - Endpoint URL + API key (masked)
+2. **Channels** — Telegram / Slack / Teams: token fields (masked),
+   allowed-user-ID lists, per-channel enable toggle, connection test
+   button.
+3. **Voice** — TTS voice picker (edge-tts voices), speaking rate,
+   STT model size, push-to-talk vs wake behavior.
+4. **Memory & data** — view/export remembered facts, wipe history,
+   RAG document manager (upload, list, delete), data-location display.
+5. **Skills** — list installed (builtin vs custom), enable/disable,
+   "open skills folder" button, author-a-skill link to docs.
+6. **Automations** — scheduled tasks and background jobs: list, pause,
+   delete; morning-briefing time.
+7. **Safety & permissions** — shell tool on/off, workspace path,
+   browser automation on/off + headed/headless, computer-use toggles,
+   Azure read/write gates. Dangerous toggles get a confirm dialog.
+8. **Updates & license** — current version, "check for update" button
+   (run.py update --check), update channel note, license key field +
+   plan display.
+9. **Advanced** — raw .env editor with validation + backup-on-save.
+
+Out of scope for v1 settings: multi-user management (that is the admin
+console, a Business-tier surface), billing (handled by the vendor site).

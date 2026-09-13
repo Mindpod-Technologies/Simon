@@ -46,21 +46,53 @@
   } else {
     el.innerHTML = `
       <h1>Let's hire Simon.</h1>
-      <p>Simon runs entirely on this machine. One command installs the
+      <div id="ollama-step">
+        <p><strong>Step 1 — the engine.</strong> Simon thinks with local models
+        via <b>Ollama</b> (free, private, runs on this machine).</p>
+        <p id="ollama-status" class="dim">checking…</p>
+        <p>
+          <button id="ollama-btn" style="background:#4fd1c5;color:#0a0e14;border:0;border-radius:8px;padding:10px 18px;font-size:14px;cursor:pointer">Install Ollama</button>
+          <span class="dim" id="ollama-note"></span>
+        </p>
+      </div>
+      <p><strong>Step 2 — Simon himself.</strong> One command installs the
       models, services, and web UI:</p>
-      <ol>
-        <li>Open ${isWin ? 'PowerShell' : 'Terminal'}</li>
-        <li>Clone the repo and run the installer:
-          <pre>${isWin
-            ? 'git clone <your-simon-repo> $HOME\\simon\n.\\simon\\deploy\\install_windows.ps1'
-            : 'git clone <your-simon-repo> ~/simon\n~/simon/deploy/install_mac.sh'}</pre></li>
-        <li>The wizard asks a few questions (channels are optional),
-          downloads the models (~18 GB, once), and starts Simon.</li>
-        <li>Relaunch this app — it will find Simon and sign you in.</li>
-      </ol>
+      <pre>${isWin
+        ? 'git clone <your-simon-repo> $HOME\\simon\n.\\simon\\deploy\\install_windows.ps1'
+        : 'git clone <your-simon-repo> ~/simon\n~/simon/deploy/install_mac.sh'}</pre>
+      <p class="dim">The wizard asks a few questions (channels are optional),
+      downloads the models (~18 GB, once), and starts Simon. Relaunch this
+      app when it's done — it will find Simon and sign you in.</p>
       <p class="dim">Requires ${isWin ? 'Windows 10+, 16 GB RAM (24 GB recommended)' :
         'Apple Silicon Mac, 24 GB RAM recommended'}. Simon Work keeps running
       in the system tray when you close this window.</p>`;
+
+    // Ollama status check + auto-detect after install.
+    const statusEl = document.getElementById('ollama-status');
+    const noteEl = document.getElementById('ollama-note');
+    const bridge = window.simonDesktop;
+    async function checkOllama() {
+      if (!bridge || !bridge.ollamaStatus) {
+        statusEl.textContent = 'Install Ollama, then continue to step 2.';
+        return false;
+      }
+      const up = await bridge.ollamaStatus();
+      statusEl.innerHTML = up
+        ? '<span style="color:#4fd1c5">✓ Ollama is installed and running.</span>'
+        : 'Ollama not detected yet.';
+      return up;
+    }
+    document.getElementById('ollama-btn').onclick = () => {
+      if (bridge && bridge.ollamaDownload) bridge.ollamaDownload();
+      noteEl.textContent = ' run the downloaded installer, then come back —';
+      const timer = setInterval(async () => {
+        if (await checkOllama()) {
+          clearInterval(timer);
+          noteEl.textContent = ' ready for step 2.';
+        }
+      }, 4000);
+    };
+    checkOllama();
   }
 </script>
 </body>

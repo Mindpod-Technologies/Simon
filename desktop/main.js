@@ -11,7 +11,7 @@
 // it rather than quitting (an employee who stops when you look away is not
 // an employee).
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -62,6 +62,20 @@ async function waitForBackend(maxMs = 60000) {
   }
   return false;
 }
+
+// --- IPC for the first-run screen -----------------------------------------
+// The first-run page is local and unprivileged; these two handlers are the
+// whole bridge: check whether Ollama is serving, and open the Ollama
+// download page in the system browser. No shell execution from the page.
+
+function ollamaUp() {
+  return healthy('http://localhost:11434/api/version');
+}
+
+app.whenReady().then(() => {
+  ipcMain.handle('ollama:status', () => ollamaUp());
+  ipcMain.handle('ollama:download', () => shell.openExternal('https://ollama.com/download'));
+});
 
 async function createWindow() {
   mainWindow = new BrowserWindow({

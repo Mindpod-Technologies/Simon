@@ -1070,3 +1070,23 @@ requires Rosetta 2 (installed this session) for electron-builder's
 x86 makensis + rcedit; per-arch NSIS filenames need an explicit
 `artifactName` with `${arch}` or the archs overwrite each other.
 Rebuild any time: `cd desktop && npm run dist:mac / dist:win`.
+
+## 37. Waitlist capture + Ollama-integrated first run + settings spec (2026-09-12)
+
+- **Landing page waitlist** — early-access email form between pricing and
+  FAQ. Posts to a form backend (Formspree-style; paste endpoint into
+  `WAITLIST_ENDPOINT` in site/src/pages/Home.tsx), falls back to the
+  visitor's email client when unconfigured. Success/error states inline.
+- **Desktop first-run now owns the Ollama gap** — the setup screen opens
+  with "Step 1 — the engine": live-detects Ollama (IPC bridge:
+  `ollama:status` polls localhost:11434, `ollama:download` opens
+  ollama.com in the system browser — no shell access from the page),
+  auto-advances the checklist when Ollama appears. Step 2 is the repo
+  installer. The whole bridge is two read-only IPC handlers.
+- **Settings menu design contract** added to SPEC.md: 9 sections (Brain,
+  Channels, Voice, Memory & data, Skills, Automations, Safety, Updates &
+  license, Advanced) with write-through-to-.env, masked secrets, and
+  restart-on-save semantics. Implementation is the next build.
+
+Installers rebuilt as v1.4.1 (Mac DMG 94 MB, Windows x64 78 MB + arm64
+83 MB) with the new first-run; DMG mount-verified.
