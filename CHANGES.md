@@ -1016,3 +1016,22 @@ run saved to `workspace/decisions/…` INSIDE the workspace, producing
 workspace-confined, so skill paths must be workspace-relative. All six
 skills fixed; the model had followed its instructions perfectly (the
 procedure was wrong, not the brain — a good omen for the skill system).
+
+## 35. Simon Work landing page (2026-09-12)
+
+The product's front door: `site/` — a React + Vite + Tailwind static
+marketing site in the dark JARVIS aesthetic (teal-on-ink, mono accents,
+matching the monitoring portal's palette).
+
+Sections per the COMMERCIAL.md §8 outline: hero ("Your self-hosted AI
+employee") with the one-command install in a terminal card, privacy
+banner (no telemetry / offline license keys / air-gap friendly), six
+feature cards, four-step how-it-works with the routing diagram, the
+three pricing tiers (Trial free / Pro $12/mo or $149 LTD / Business
+$49/seat), six-question FAQ, footer. CTA buttons are placeholders until
+the Stripe Payment Links exist (COMMERCIAL.md §3).
+
+Built with the webapp-building scaffold; content lives in
+`site/src/pages/Home.tsx`. `npm run build` clean (248 KB JS, gzip 79 KB).
+Verified rendered end-to-end in a real browser (hero → footer). Build
+artifacts gitignored; source is versioned with the product.
