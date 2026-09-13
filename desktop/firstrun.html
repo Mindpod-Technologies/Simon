@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Simon Work — Setup</title>
+<style>
+  body { background:#0a0e14; color:#c9d6e3; font:15px/1.6 -apple-system, "Segoe UI", sans-serif;
+         display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; }
+  .card { max-width:560px; padding:40px; }
+  h1 { color:#e8f0f7; font-size:26px; margin:0 0 6px; }
+  .logo { width:52px; height:52px; border:2px solid #4fd1c5; border-radius:12px; color:#4fd1c5;
+          display:flex; align-items:center; justify-content:center; font:700 26px ui-monospace,monospace;
+          margin-bottom:22px; }
+  code, pre { font-family:ui-monospace, Menlo, Consolas, monospace; }
+  pre { background:#0d131c; border:1px solid #1e2a38; border-radius:10px; padding:16px 18px;
+        color:#4fd1c5; font-size:14px; overflow-x:auto; }
+  .dim { color:#5c7186; font-size:13px; }
+  .warn { color:#f6ad55; }
+  ol { padding-left:20px; } li { margin-bottom:10px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">S</div>
+  <div id="content"></div>
+</div>
+<script>
+  const state = new URLSearchParams(location.search).get('state') || 'missing';
+  const isWin = navigator.platform.startsWith('Win');
+  const el = document.getElementById('content');
+
+  if (state === 'starting') {
+    el.innerHTML = `
+      <h1>Simon is starting…</h1>
+      <p class="dim">The local backend is coming up. This takes a few seconds
+      (longer the first time, while models load). You'll be taken to Simon
+      automatically.</p>`;
+    setTimeout(() => location.href = 'http://localhost:8788/', 8000);
+  } else if (state === 'failed') {
+    el.innerHTML = `
+      <h1 class="warn">Simon didn't start</h1>
+      <p>The backend at <code>~/simon</code> exists but isn't answering.
+      Check the logs and restart it:</p>
+      <pre>tail -f ~/simon/data/logs/simon.err.log</pre>
+      <p class="dim">Then relaunch Simon Work.</p>`;
+  } else {
+    el.innerHTML = `
+      <h1>Let's hire Simon.</h1>
+      <p>Simon runs entirely on this machine. One command installs the
+      models, services, and web UI:</p>
+      <ol>
+        <li>Open ${isWin ? 'PowerShell' : 'Terminal'}</li>
+        <li>Clone the repo and run the installer:
+          <pre>${isWin
+            ? 'git clone <your-simon-repo> $HOME\\simon\n.\\simon\\deploy\\install_windows.ps1'
+            : 'git clone <your-simon-repo> ~/simon\n~/simon/deploy/install_mac.sh'}</pre></li>
+        <li>The wizard asks a few questions (channels are optional),
+          downloads the models (~18 GB, once), and starts Simon.</li>
+        <li>Relaunch this app — it will find Simon and sign you in.</li>
+      </ol>
+      <p class="dim">Requires ${isWin ? 'Windows 10+, 16 GB RAM (24 GB recommended)' :
+        'Apple Silicon Mac, 24 GB RAM recommended'}. Simon Work keeps running
+      in the system tray when you close this window.</p>`;
+  }
+</script>
+</body>
+</html>

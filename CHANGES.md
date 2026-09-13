@@ -1035,3 +1035,38 @@ Built with the webapp-building scaffold; content lives in
 `site/src/pages/Home.tsx`. `npm run build` clean (248 KB JS, gzip 79 KB).
 Verified rendered end-to-end in a real browser (hero → footer). Build
 artifacts gitignored; source is versioned with the product.
+
+## 36. Desktop app + native installers for Mac and Windows (2026-09-12)
+
+Simon Work now ships like a real desktop product (Claude Cowork / Kimi
+Work style), not just a shell script.
+
+**`desktop/` — Electron shell** (unsigned, source in-repo):
+- Attaches to a running Simon at localhost:8788; if the backend is
+  installed but down, spawns it and waits for health; if Simon isn't
+  installed at all, a first-run screen walks the user through the
+  one-command installer (platform-appropriate: bash or PowerShell).
+- System tray (Open Simon / monitoring portal / quit); closing the
+  window hides it — Simon keeps working. Minimal preload bridge,
+  contextIsolation on.
+- `desktop/icon.png` generated in-repo (teal S on ink, 512px).
+
+**Installers built on this machine:**
+- Mac: `Simon Work-1.4.0-arm64.dmg` (94 MB, APFS, unsigned — Gatekeeper
+  will warn; right-click → Open for beta, buy a Developer ID cert for GA)
+- Windows: `Simon Work Setup 1.4.0-x64.exe` (78 MB) and `-arm64.exe`
+  (83 MB), one-click NSIS, per-user, desktop shortcut.
+
+**Windows parity elsewhere:**
+- `deploy/install_windows.ps1` — full port of the Mac installer: winget
+  prerequisites (Python 3.11, Ollama), same wizard, same model fleet,
+  default mcp.json, Scheduled Tasks (logon trigger, restart-on-failure)
+  in place of launchd, health check at the end.
+- `updater.py` `_restart_services` is now cross-platform (launchd /
+  Scheduled Tasks / systemd user units).
+
+**Build notes for the record:** cross-building NSIS on Apple Silicon
+requires Rosetta 2 (installed this session) for electron-builder's
+x86 makensis + rcedit; per-arch NSIS filenames need an explicit
+`artifactName` with `${arch}` or the archs overwrite each other.
+Rebuild any time: `cd desktop && npm run dist:mac / dist:win`.

@@ -130,10 +130,25 @@ def _run_tests() -> None:
 
 
 def _restart_services() -> None:
-    uid = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
-    for label in SERVICES:
-        subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/{label}"],
-                       capture_output=True)
+    """Restart Simon's background services on whatever OS we're on."""
+    import platform
+    system = platform.system()
+    if system == "Darwin":
+        uid = subprocess.run(["id", "-u"], capture_output=True, text=True).stdout.strip()
+        for label in SERVICES:
+            subprocess.run(["launchctl", "kickstart", "-k", f"gui/{uid}/{label}"],
+                           capture_output=True)
+    elif system == "Windows":
+        for task in ("SimonAssistant", "SimonMonitor"):
+            for verb in ("Stop", "Start"):
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     f"{verb}-ScheduledTask -TaskName {task}"],
+                    capture_output=True)
+    else:  # Linux: systemd user units per deploy/simon.service
+        for unit in ("simon", "simon-monitor"):
+            subprocess.run(["systemctl", "--user", "restart", unit],
+                           capture_output=True)
 
 
 def _healthy() -> bool:

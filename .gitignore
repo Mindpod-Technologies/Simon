@@ -12,3 +12,7 @@ __pycache__/
 # Landing page build artifacts
 site/node_modules/
 site/dist/
+
+# Desktop app build artifacts
+desktop/node_modules/
+desktop/dist/

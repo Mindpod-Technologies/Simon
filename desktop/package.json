@@ -1,0 +1,45 @@
+{
+  "name": "simon-work-desktop",
+  "version": "1.4.0",
+  "description": "Simon Work — your self-hosted AI employee (desktop shell)",
+  "main": "main.js",
+  "author": "Mindpod Technologies",
+  "license": "LicenseRef-SourceAvailable",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac dmg",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.mindpod.simonwork",
+    "productName": "Simon Work",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "firstrun.html", "icon.png"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "icon.png",
+      "target": ["dmg"],
+      "identity": null
+    },
+    "dmg": {
+      "title": "Simon Work",
+      "window": { "width": 540, "height": 380 }
+    },
+    "win": {
+      "icon": "icon.png",
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Simon Work",
+      "artifactName": "${productName} Setup ${version}-${arch}.${ext}"
+    }
+  }
+}
