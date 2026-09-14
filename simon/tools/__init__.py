@@ -125,6 +125,15 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
         except Exception as exc:  # noqa: BLE001
             log.warning("email tools unavailable: %s", exc)
 
+    # Microsoft Graph mail — M365 tenants where basic IMAP/SMTP auth is
+    # disabled. Takes precedence (registers after) when GRAPH_* is set.
+    try:
+        from . import graph_mail
+
+        graph_mail.register_graph_mail_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("graph mail tools unavailable: %s", exc)
+
     if getattr(settings, "google_calendar_ics", ""):
         try:
             from . import calendar_tool

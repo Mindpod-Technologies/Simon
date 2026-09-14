@@ -54,6 +54,13 @@ class Settings(BaseSettings):
     smtp_host: str = ""
     smtp_user: str = ""
     smtp_password: str = ""
+    # Microsoft Graph mail (M365 tenants with basic auth disabled — the
+    # supported path). Entra app registration with Mail.Read + Mail.Send
+    # application permissions; see simon/tools/graph_mail.py docstring.
+    graph_tenant_id: str = ""
+    graph_client_id: str = ""
+    graph_client_secret: str = ""
+    simon_mailbox: str = "simon@mindpodtech.com"
     google_calendar_ics: str = ""
     homeassistant_url: str = ""
     homeassistant_token: str = ""
