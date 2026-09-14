@@ -6,7 +6,8 @@ and a bounded timeout. Gated behind ``SIMON_DEV_DELEGATE_ENABLED`` — off by
 default, exactly like ``run_shell``.
 
 Design rules (mirror the company-wide guardrails in MindpodTech_Agents):
-  * engines are an allowlist (``claude``, ``codex``) — never a free-form command
+  * engines are an allowlist (``claude``, ``codex``, ``cursor``) — never a
+    free-form command
   * the working directory must resolve inside the workspace root
   * the child env carries only PATH/HOME/LANG + CI markers — no SIMON_/API keys
   * engines authenticate with their OWN accounts (Claude: keychain OAuth;
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -29,7 +31,28 @@ _MAX_OUT = 6000            # chars returned to the model
 _ENGINES = {
     "claude": lambda task: ["claude", "-p", task, "--output-format", "text"],
     "codex": lambda task: ["codex", "exec", task],
+    "cursor": lambda task: ["cursor-agent", "-p", task,
+                            "--output-format", "text"],
 }
+
+# Simon runs under launchd with a minimal PATH (/usr/bin:/bin:...), so a bare
+# binary name often won't resolve. Try PATH first, then well-known locations.
+_BIN_CANDIDATES = {
+    "claude": ("/opt/homebrew/bin/claude", "/usr/local/bin/claude"),
+    "codex": ("/opt/homebrew/bin/codex", "/usr/local/bin/codex"),
+    "cursor-agent": (str(Path.home() / ".local" / "bin" / "cursor-agent"),
+                     "/opt/homebrew/bin/cursor-agent"),
+}
+
+
+def _resolve_bin(name: str) -> str:
+    found = shutil.which(name)
+    if found:
+        return found
+    for cand in _BIN_CANDIDATES.get(name, ()):  # absolute fallbacks
+        if os.path.exists(cand):
+            return cand
+    return name  # let subprocess raise FileNotFoundError -> clean message
 
 _SAFE_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
 
@@ -64,6 +87,7 @@ def delegate_dev(settings, task: str, engine: str = "claude",
     env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
     env.update({"CI": "true", "TERM": "dumb"})
     cmd = _ENGINES[engine](task)
+    cmd[0] = _resolve_bin(cmd[0])
     log.info("delegate_dev: engine=%s cwd=%s task=%.80s", engine, cwd, task)
     try:
         proc = subprocess.run(
@@ -109,7 +133,8 @@ def register_dev_delegate_tools(registry, settings) -> None:
             "properties": {
                 "task": {"type": "string",
                          "description": "Full instruction for the coding engine, including what to change and where."},
-                "engine": {"type": "string", "enum": ["claude", "codex"],
+                "engine": {"type": "string",
+                           "enum": ["claude", "codex", "cursor"],
                            "default": "claude"},
                 "path": {"type": "string",
                          "description": "Working directory relative to the workspace root (default '.').",
@@ -120,4 +145,4 @@ def register_dev_delegate_tools(registry, settings) -> None:
         func=lambda task, engine="claude", path=".": delegate_dev(
             settings, task, engine, path),
     ))
-    log.info("delegate_dev tool registered (engines: claude, codex)")
+    log.info("delegate_dev tool registered (engines: claude, codex, cursor)")
