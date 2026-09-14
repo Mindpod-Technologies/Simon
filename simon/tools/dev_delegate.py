@@ -29,7 +29,8 @@ _TIMEOUT_S = 1500          # 25 min hard cap per delegated task
 _MAX_OUT = 6000            # chars returned to the model
 
 _ENGINES = {
-    "claude": lambda task: ["claude", "-p", task, "--output-format", "text"],
+    "claude": lambda task: ["claude", "-p", task, "--output-format", "text",
+                            "--permission-mode", "acceptEdits"],
     "codex": lambda task: ["codex", "exec", "--sandbox", "workspace-write",
                            task],
     "cursor": lambda task: ["cursor-agent", "-p", task,
