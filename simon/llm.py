@@ -45,6 +45,13 @@ SMART_KEYWORDS = (
     # Explicit MCP tool requests: naming an external tool means the user
     # expects a real call, which needs the smart model's tool discipline.
     "mcp_",
+    # Connected integrations: any turn referencing a wired-up external service
+    # expects a tool call. The fine-tuned fast model (mindpod-qwen3) answers
+    # from prose knowledge instead of calling tools — 2026-09-14 regression
+    # found when "list my GitHub repos" silently no-called on the fast tier.
+    "github", "repository", "repositories", "pull request", "merge request",
+    "open an issue", "file an issue", "create a branch", "push a commit",
+    "clone the", "fork the",
 )
 
 
