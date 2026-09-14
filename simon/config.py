@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     # Scheduled proactive behaviour
     simon_hourly_status: bool = True  # hourly status updates 07:17–23:17
     simon_weekly_suggestions: bool = True  # Sat 10:12 automation proposals
+    simon_mail_check_enabled: bool = True  # inbox watch (needs GRAPH_* creds)
+    simon_mail_check_minutes: int = 5  # inbox poll cadence
 
     # Background jobs (long-running assignments executed by the JobRunner)
     simon_jobs_enabled: bool = True

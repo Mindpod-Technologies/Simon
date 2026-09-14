@@ -25,6 +25,7 @@ EVAL_HOUR = 19
 EVAL_MINUTE = 12
 STATUS_MINUTE = 17  # off-peak minute for hourly status updates
 SCHEDULE_SYNC_SECONDS = 60
+MAIL_CHECK_MINUTES = 5  # default inbox poll cadence (env-tunable)
 SUGGEST_DAY_OF_WEEK = "sat"
 SUGGEST_HOUR = 10
 SUGGEST_MINUTE = 12
@@ -84,6 +85,19 @@ class Scheduler:
             id="poll_reminders",
             replace_existing=True,
         )
+        # Inbox watch: poll Simon's M365 mailbox; the agent dedupes against
+        # its own session history and only interrupts for new, actionable
+        # mail. Requires Graph credentials (graph_mail tool).
+        if (getattr(self.settings, "graph_client_secret", "")
+                and getattr(self.settings, "simon_mail_check_enabled", True)):
+            self._scheduler.add_job(
+                self._mail_check,
+                IntervalTrigger(minutes=getattr(
+                    self.settings, "simon_mail_check_minutes",
+                    MAIL_CHECK_MINUTES)),
+                id="mail_check",
+                replace_existing=True,
+            )
         self._scheduler.add_job(
             self._weekly_evals,
             CronTrigger(day_of_week=EVAL_DAY_OF_WEEK, hour=EVAL_HOUR,
@@ -152,6 +166,30 @@ class Scheduler:
                     memory.delete_reminder(reminder["id"])
         except Exception:
             logger.exception("Reminder poll failed")
+
+    async def _mail_check(self) -> None:
+        """Poll Simon's M365 inbox; interrupt only for new, actionable mail.
+
+        The agent's persistent session history is the dedupe: it knows what
+        it already reported and must answer MAIL_CHECK_QUIET otherwise.
+        """
+        if self.agent_factory is None:
+            return
+        try:
+            agent = self.agent_factory()
+            reply = agent.handle(
+                "Background mail check (autonomous). Use read_recent_emails "
+                "(count 5) on the simon@mindpodtech.com mailbox. Report ONLY "
+                "messages you have NOT already reported in this session. If "
+                "there is new mail needing the owner's attention, reply with "
+                "a tight briefing per message (from, subject, what it "
+                "needs). If there is nothing new, or nothing worth "
+                "interrupting for, reply with exactly: MAIL_CHECK_QUIET"
+            )
+            if reply and "MAIL_CHECK_QUIET" not in reply:
+                self.notify(f"\U0001F4EC Mail check: {reply}")
+        except Exception:
+            logger.exception("Mail check failed")
 
     def _activity_digest(self, hours: float = 1.0) -> str:
         """Deterministic digest of REAL recent activity from the event log.
