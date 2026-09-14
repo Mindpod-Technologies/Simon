@@ -151,6 +151,28 @@ def test_resolve_bin_returns_bare_name_when_unfound():
         assert dev_delegate._resolve_bin("codex") == "codex"
 
 
+def test_claude_token_bridged_from_settings(tmp_path, monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    s = _settings(simon_workspace_dir=str(ws),
+                  claude_code_oauth_token="tok-123")
+    captured = {}
+
+    class FakeProc:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def fake_run(cmd, cwd, env, **kw):
+        captured["env"] = env
+        return FakeProc()
+
+    with mock.patch.object(subprocess, "run", fake_run):
+        dev_delegate.delegate_dev(s, "task", engine="claude")
+    assert captured["env"]["CLAUDE_CODE_OAUTH_TOKEN"] == "tok-123"
+
+
 def test_timeout_reported(tmp_path):
     ws = tmp_path / "ws"
     ws.mkdir()

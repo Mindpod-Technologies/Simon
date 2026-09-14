@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     graph_client_id: str = ""
     graph_client_secret: str = ""
     simon_mailbox: str = "simon@mindpodtech.com"
+    # Headless auth for the claude delegate engine (from `claude setup-token`).
+    claude_code_oauth_token: str = ""
     google_calendar_ics: str = ""
     homeassistant_url: str = ""
     homeassistant_token: str = ""

@@ -90,6 +90,12 @@ def delegate_dev(settings, task: str, engine: str = "claude",
 
     env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
     env.update({"CI": "true", "TERM": "dumb"})
+    # Settings carries secrets from .env (not os.environ) — bridge the
+    # claude headless token explicitly.
+    tok = (getattr(settings, "claude_code_oauth_token", "")
+           or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", ""))
+    if tok:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
     cmd = _ENGINES[engine](task)
     cmd[0] = _resolve_bin(cmd[0])
     log.info("delegate_dev: engine=%s cwd=%s task=%.80s", engine, cwd, task)
