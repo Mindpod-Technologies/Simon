@@ -1,0 +1,22 @@
+model: mlx-community/Qwen3-8B-4bit
+train: true
+data: data/mlx_v2
+adapter_path: output_v2
+fine_tune_type: lora
+lora_parameters:
+  rank: 32
+  scale: 1.0
+  dropout: 0.0
+  keys: ["self_attn.q_proj", "self_attn.v_proj"]
+num_layers: 36
+batch_size: 2
+iters: 85
+learning_rate: 2e-5
+mask_prompt: true
+grad_checkpoint: true
+steps_per_report: 30
+steps_per_eval: 500
+steps_per_save: 85
+val_batches: 6
+max_seq_length: 1024
+seed: 42

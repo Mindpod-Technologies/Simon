@@ -1,0 +1,128 @@
+{
+  "model": "mindpod-qwen3:8b",
+  "facts": "11/16",
+  "controls": "2/4",
+  "total_s": 37.1,
+  "results": [
+    {
+      "q": "What is AngelMind?",
+      "score": 1,
+      "secs": 3.2,
+      "ans": "AngelMind is Mindpod's AI security and governance platform for organizations adopting agents, copilots, custom AI apps, and automated workflows. It is designed to show what the AI touched, what it decided, and who approved it: discovering AI usage across the organization, mapping what data each tool can reach, approval gates on consequential actions, least-privilege scoping for agents, and evidenc"
+    },
+    {
+      "q": "Is AngelMind available for purchase today?",
+      "score": 1,
+      "secs": 1.8,
+      "ans": "Yes. AngelMind is in development and will be available soon. It offers omnichannel chat (web, Slack, Telegram), persistent memory, a scheduler, subagents, a skills library, local-model routing, and desktop installers for Mac and Windows. It is the productized form of the agentic operating model Mindpod runs on itself."
+    },
+    {
+      "q": "What does MITB stand for?",
+      "score": 1,
+      "secs": 2.6,
+      "ans": "MITB stands for Minds In a Techs Box. It is Mindpod's Microsoft operations intelligence platform for MSPs and lean IT teams. It runs autonomous IT operations on top of Microsoft 365, Entra, Azure, and the security stack: continuous monitoring, risk detection for misconfigurations and baseline drift, remediation guidance, and AI infrastructure capacity that extends a team without new hires. It scor"
+    },
+    {
+      "q": "Who is MITB for?",
+      "score": 1,
+      "secs": 2.6,
+      "ans": "MITB stands for Minds In a Techs Box. It is Mindpod's Microsoft operations intelligence platform for MSPs and lean IT teams. It runs autonomous IT operations on top of Microsoft 365, Entra, Azure, and the security stack: continuous monitoring, risk detection for misconfigurations and baseline drift, remediation guidance, and AI infrastructure capacity that extends a team without new hires. It scor"
+    },
+    {
+      "q": "What environments does MITB support?",
+      "score": 1,
+      "secs": 2.0,
+      "ans": "MITB runs autonomous IT operations on top of Microsoft 365, Entra, Azure, and the security stack: continuous monitoring, risk detection for misconfigurations and baseline drift, remediation guidance, and AI infrastructure capacity that extends a team without new hires. It scores risk, cites evidence, and turns findings into remediation plans and client-ready reports. Status: in development."
+    },
+    {
+      "q": "What is the AI Pulse Check?",
+      "score": 1,
+      "secs": 1.8,
+      "ans": "MITB offers two entry points: the AI Pulse Check \u2014 a fixed-scope assessment that surfaces hidden Microsoft, Azure, Entra, and Entra risk and delivers a prioritized 30-day remediation plan; and Bot in a Box \u2014 ongoing autonomous IT operations capacity (monitoring, remediation support, AI ops) dropped into your environment."
+    },
+    {
+      "q": "What is Quotewren?",
+      "score": 1,
+      "secs": 1.8,
+      "ans": "Quotewren is the first MicroApp by Mindpod, and it is live. It handles the money work after the job for small service businesses \u2014 trades, mobile services, and owner-operators: Quote \u2192 Accept \u2192 Invoice & payment \u2192 Review request, all from a phone. It runs as its own product at app.quotewren.com."
+    },
+    {
+      "q": "How much does Quotewren Solo cost per month?",
+      "score": 0,
+      "secs": 1.8,
+      "ans": "Quotewren is the first MicroApp by Mindpod, and it is live. It handles the money work after the job for small service businesses \u2014 trades, mobile services, and owner-operators: Quote \u2192 Accept \u2192 Invoice & payment \u2192 Review request, all from a phone. It runs as its own product at app.quotewren.com."
+    },
+    {
+      "q": "How much does Quotewren Pro cost per month?",
+      "score": 0,
+      "secs": 1.8,
+      "ans": "Quotewren is the first MicroApp by Mindpod, and it is live. It handles the money work after the job for small service businesses \u2014 trades, mobile services, and owner-operators: Quote \u2192 Accept \u2192 Invoice & payment \u2192 Review request, all from a phone. It runs as its own product at app.quotewren.com."
+    },
+    {
+      "q": "What is SupplyMind.ei?",
+      "score": 1,
+      "secs": 3.0,
+      "ans": "SupplyMind.ei is Mindpod's supply-chain, tariff, and risk intelligence platform. It quantifies tariff and supplier risk in dollars: a Tariff Exposure Calculator (product, country, HTS code, annual spend \u2192 projected annual duty exposure), a Risk Monitor with live supplier risk scores, Price Intelligence with 90-day trends and alerts, and an AI Assistant that gives plain-language mitigation guidance"
+    },
+    {
+      "q": "What were the Michael scanner's recall and precision figures?",
+      "score": 0,
+      "secs": 2.5,
+      "ans": "Michael is a pattern-matching engine, good at attacks that look like attacks but weak on attacks written as ordinary language. On their corpus: evasive paraphrases 0 of 10 detected, encoded payloads (e.g. Base64) 1 of 5, jailbreak phrasings 2 of 5. It reliably catches direct prompt injection, leaked secrets, dangerous commands, harness tampering, and hidden-Unicode payloads. A normalization-plus-c"
+    },
+    {
+      "q": "Who founded Mindpod Technologies?",
+      "score": 1,
+      "secs": 2.2,
+      "ans": "Jaras Funderburg founded Mindpod Technologies. He has 20+ years of experience in Microsoft infrastructure and security \u2014 including Microsoft Entra ID, Defender, Purview, Azure, AWS, VMware, Hyper-V, and Ansible automation. He is based in Atlanta and is both strategic and hands-on: the same person who sets the roadmap can stand up the identity tenant, write the policy, and ship the fix."
+    },
+    {
+      "q": "Where is Mindpod Technologies based?",
+      "score": 1,
+      "secs": 0.4,
+      "ans": "Mindpod Technologies is based in Atlanta, GA."
+    },
+    {
+      "q": "What are Mindpod's five layers of Enterprise Intelligence?",
+      "score": 0,
+      "secs": 1.8,
+      "ans": "Layer 1 is Strategic Intelligence: senior technology leadership without senior headcount. It includes fractional CTO engagements, technology roadmap and sequencing, AI strategy and adoption planning, executive and board-level advisory, vendor and platform decisions, and risk prioritization. Engagements run Assessment \u2192 Roadmap \u2192 Execution oversight \u2192 Handoff, and the client keeps the artifacts."
+    },
+    {
+      "q": "How does Mindpod handle high-risk AI actions?",
+      "score": 1,
+      "secs": 1.5,
+      "ans": "Mindpod's stated position is that human-in-the-loop is the professional standard, not training wheels. High-stakes actions \u2014 production, identity, security posture, data \u2014 require explicit human approval, enforced in code, not documentation. Mindpod applies the same rule to its own products."
+    },
+    {
+      "q": "Can Mindpod help a law firm adopt AI safely?",
+      "score": 0,
+      "secs": 1.3,
+      "ans": "Yes. Law firms can deliver AI adoption without new headcount by leveraging AI infrastructure, cloud, security, and operational intelligence. It requires senior AI leadership, AI governance, cloud modernization, and a culture of security and transparency."
+    },
+    {
+      "q": "What is the capital of Japan?",
+      "score": 1,
+      "secs": 0.4,
+      "ans": "Yes. The capital of Japan is Tokyo."
+    },
+    {
+      "q": "What is 17 times 24?",
+      "score": 0,
+      "secs": 0.8,
+      "ans": "17 \u00d7 24 = 4512. The calculation is straightforward arithmetic, and the answer is correct."
+    },
+    {
+      "q": "In one sentence, what is a TCP three-way handshake?",
+      "score": 0,
+      "secs": 2.4,
+      "ans": "Yes. TCP three-way handshake is the professional standard, not training wheels. It is a formalized self-hosted AI employee product, being built from Mindpod's own AI infrastructure. It offers omnichannel chat (web, Slack, Telegram), persistent memory, a scheduler, subagents, a skills library, local-model routing, and desktop installers for Mac and Windows. It is the productized form of the agentic"
+    },
+    {
+      "q": "Write a haiku about rain.",
+      "score": 1,
+      "secs": 1.4,
+      "ans": "Mindpod's haiku is \"Rain, mud, and the earth's song \u2014 the rhythm of rain on the roof, the sound of water, and the feeling of being watched. It captures the essence of a rainy day in a small town."
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+llama.cpp/
+soup/.venv/
+soup/fused*/
+soup/output*/
+*.gguf
+__pycache__/

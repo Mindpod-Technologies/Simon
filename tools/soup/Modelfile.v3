@@ -1,0 +1,2 @@
+FROM /Users/mpt_ai_machine/simon/tools/soup/mindpod-qwen3-8b-v3-q4km.gguf
+PARAMETER temperature 0.3

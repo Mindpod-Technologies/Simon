@@ -1,0 +1,68 @@
+{
+  "model": "qwen3:8b",
+  "facts": "0/16",
+  "controls": "0/4",
+  "total_s": 191.5,
+  "results": [
+    {
+      "q": "What is AngelMind?",
+      "score": 0,
+      "secs": 13.8,
+      "ans": "AngelMind is a meditation and mindfulness app designed to help users reduce stress, improve focus, and enhance emotional well-being through guided sessions. Here's a breakdown of its key features and purpose:\n\n### **Core Features:**\n1. **Guided Meditations:**  \n   - Offers short (5\u201310 minutes) and longer sessions for stress relief, focus, and relaxation.  \n   - Includes themes like sleep, anxiety,"
+    },
+    {
+      "q": "Is AngelMind available for purchase today?",
+      "score": 0,
+      "secs": 14.0,
+      "ans": "As of my last update in July 2024, there is no widely known brand or product called \"AngelMind\" that is currently available for purchase through major retailers or official channels. If you're referring to a specific product, brand, or service, please provide more context (e.g., type of product, industry, or specific details). \n\nTo check availability today:\n1. **Visit the official website**: If An"
+    },
+    {
+      "q": "What does MITB stand for?",
+      "score": 0,
+      "secs": 17.7,
+      "ans": "MITB can stand for different things depending on the context. Here are some common interpretations:\n\n1. **Multipoint to Point (Networking)**: In networking, MITB refers to a protocol or method used for transmitting data between multiple points in a network, though this is less commonly referenced in standard networking terminology.\n\n2. **Minimum Information to Be Published (Data Sharing)**: In the"
+    },
+    {
+      "q": "Who is MITB for?",
+      "score": 0,
+      "secs": 24.8,
+      "ans": "The acronym \"MITB\" can refer to different entities depending on the context. Here are the most common interpretations:\n\n1. **Massachusetts Institute of Technology Business (MITB)**:  \n   - This could refer to a program, initiative, or department at MIT focused on business education or research. However, MIT's official business school is the **MIT Sloan School of Management**, so \"MITB\" is not an o"
+    },
+    {
+      "q": "What environments does MITB support?",
+      "score": 0,
+      "secs": 25.1,
+      "ans": "The MIT BERT (MIT BERT) model, developed by the Massachusetts Institute of Technology (MIT), is a pre-trained language model that supports various environments for training, deployment, and inference. Here's a breakdown of the environments it typically supports:\n\n### 1. **Programming Languages**\n   - **Python**: The primary language for using MIT BERT, as it is commonly implemented with libraries "
+    },
+    {
+      "q": "What is the AI Pulse Check?",
+      "score": 0,
+      "secs": 28.4,
+      "ans": "The **AI Pulse Check** is a term used to describe a comprehensive assessment or survey aimed at evaluating the current state, progress, and impact of artificial intelligence (AI) across various sectors. While the exact definition may vary depending on the organization or initiative, the concept generally involves gathering data, insights, and trends to understand how AI is being adopted, its chall"
+    },
+    {
+      "q": "What is Quotewren?",
+      "score": 0,
+      "secs": 26.8,
+      "ans": "**Quotewren** is an internet meme that originated as a humorous image macro featuring a cartoonish, anthropomorphic bird (often depicted as a wren) with a speech bubble containing a witty, ironic, or sarcastic quote. The term itself is a portmanteau of \"quote\" and \"wren,\" combining the concept of a quote with the image of a bird.\n\n### Key Features:\n1. **Visual Style**: The meme typically features "
+    },
+    {
+      "q": "How much does Quotewren Solo cost per month?",
+      "score": 0,
+      "secs": 10.1,
+      "ans": "As of my last update in October 2023, I don't have specific information about the monthly cost of **Quotewren Solo**. Pricing for tools like this can vary depending on the provider, and details may change over time. \n\nTo get the most accurate and up-to-date information, I recommend checking the official **Quotewren website** or contacting their customer support directly. If you have additional con"
+    },
+    {
+      "q": "How much does Quotewren Pro cost per month?",
+      "score": 0,
+      "secs": 10.2,
+      "ans": "As of my last update in July 2024, I don't have specific information about the current monthly cost of **Quotewren Pro**. Pricing for tools like Quotewren (or similar services) can vary depending on the plan (e.g., monthly vs. annual subscriptions, individual vs. business tiers) and may change over time. \n\nFor the most accurate and up-to-date pricing details, I recommend checking the **official Qu"
+    },
+    {
+      "q": "What is SupplyMind.ei?",
+      "score": 0,
+      "secs": 20.6,
+      "ans": "As of my knowledge cutoff in July 2024, there is no widely recognized or publicly known entity, company, or product named **SupplyMind.ei**. The term may be a typo, a niche project, or a private initiative that has not gained significant attention in mainstream media or industry reports.\n\n### Possible Interpretations:\n1. **Typo or Misstatement**:  \n   - The name might be a mix-up (e.g., \"SupplyMin"
+    }
+  ]
+}

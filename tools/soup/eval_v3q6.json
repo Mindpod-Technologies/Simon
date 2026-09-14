@@ -1,0 +1,128 @@
+{
+  "model": "mindpod-qwen3:v3-q6",
+  "facts": "9/16",
+  "controls": "4/4",
+  "total_s": 44.9,
+  "results": [
+    {
+      "q": "What is AngelMind?",
+      "score": 1,
+      "secs": 5.6,
+      "ans": "AngelMind is Mindpod's AI security and governance platform for organizations adopting agents, copilots, custom AI apps, and automated workflows. It is designed to show what the AI touched, what it decided, and who approved it: discovering AI usage across the organization, mapping what data each tool can reach, approval gates on consequential actions, least-privilege scoping for agents, and evidenc"
+    },
+    {
+      "q": "Is AngelMind available for purchase today?",
+      "score": 1,
+      "secs": 1.8,
+      "ans": "AngelMind is Mindpod's AI security and governance platform for organizations adopting agents, copilots, custom AI apps, and automated workflows. It is in development but not yet generally available. Mindpod does not sign you up for a beta that never ships."
+    },
+    {
+      "q": "What does MITB stand for?",
+      "score": 0,
+      "secs": 1.9,
+      "ans": "MITB stands for Anything-to-Anything in enterprise AI: Mindpod's MITB model is the only shipped enterprise AI monitoring instance input -> analysis -> action roadmap with built-time AI risk controls. It runs entirely autonomous but exposes everything a human can review, revise, and enforce."
+    },
+    {
+      "q": "Who is MITB for?",
+      "score": 0,
+      "secs": 1.2,
+      "ans": "MITB stands for Minds In a Techs Box. It is Mindpod's delivery model: a technology partner with ongoing responsibility even after the work is done."
+    },
+    {
+      "q": "What environments does MITB support?",
+      "score": 1,
+      "secs": 2.3,
+      "ans": "MITB runs autonomous IT operations on top of your Microsoft 365, Entra, Azure, and security stack: continuous monitoring, risk detection for misconfigurations and baseline drift, remediation guidance, and AI infrastructure capacity. It supports Microsoft 365, Entra, Azure, and the surrounding security and MSP support stack."
+    },
+    {
+      "q": "What is the AI Pulse Check?",
+      "score": 1,
+      "secs": 2.2,
+      "ans": "MITB offers two entry points: the AI Pulse Check \u2014 a fixed-scope assessment that surfaces hidden Microsoft, Azure, and Entra risk and delivers a prioritized 30-day remediation plan; and Bot in a Box \u2014 ongoing autonomous IT operations capacity (monitoring, remediation support, AI ops) dropped into your environment."
+    },
+    {
+      "q": "What is Quotewren?",
+      "score": 1,
+      "secs": 2.3,
+      "ans": "Quotewren is the first MicroApp by Mindpod, and it is live. It handles the money work after the job for small service businesses \u2014 trades, mobile services, and owner-operators: Quote \u2192 Accept \u2192 Invoice & payment \u2192 Review request, all from a phone. It runs as its own product at app.quotewren.com."
+    },
+    {
+      "q": "How much does Quotewren Solo cost per month?",
+      "score": 1,
+      "secs": 2.6,
+      "ans": "As of 2 September 2026 (check app.quotewren.com for current pricing): Free is $0 for your first three documents, no card required. Solo is $19 per month with unlimited documents and automated review requests by SMS. Pro is $39 per month with everything in Solo plus recurring invoices, line-item templates, past-due reminders, and review analytics."
+    },
+    {
+      "q": "How much does Quotewren Pro cost per month?",
+      "score": 1,
+      "secs": 2.7,
+      "ans": "Quotewren pricing, as of 2 September 2026 (verify at app.quotewren.com): Free is $0 for your first three documents, no card required. Solo is $19 per month with unlimited documents and automated review requests by SMS. Pro is $39 per month with everything in Solo plus recurring invoices, line-item templates, past-due reminders, and review analytics."
+    },
+    {
+      "q": "What is SupplyMind.ei?",
+      "score": 0,
+      "secs": 3.4,
+      "ans": "SupplyMind.ei is Mindpod's supply-chain and operations intelligence platform. It combines AI-powered demand forecasting with anomaly detection, product flow mapping, and price- and cost-trainers \u2014 all connected through a single database that ships with the app. The result is a keep-running intelligence layer for supply and revenue: never another out-of-date forecast, another hidden bottleneck, or "
+    },
+    {
+      "q": "What were the Michael scanner's recall and precision figures?",
+      "score": 0,
+      "secs": 2.0,
+      "ans": "Michael's recall is 60.00% (6 good out of 10 submitted), and his precision is 80.00% (6 good out of 7 passed). The only failure is the false negative: he missed the one bad input that was actually good."
+    },
+    {
+      "q": "Who founded Mindpod Technologies?",
+      "score": 1,
+      "secs": 2.8,
+      "ans": "Jaras Funderburg founded Mindpod Technologies. He has 20+ years of experience in Microsoft infrastructure and security \u2014 including Microsoft Entra ID, Defender, Purview, Azure, AWS, VMware, Hyper-V, and Ansible automation. He is based in Atlanta and is both strategic and hands-on: the same person who sets the roadmap can stand up the identity tenant, write the policy, and ship the fix."
+    },
+    {
+      "q": "Where is Mindpod Technologies based?",
+      "score": 0,
+      "secs": 0.5,
+      "ans": "Mindpod Technologies is based in London, UK."
+    },
+    {
+      "q": "What are Mindpod's five layers of Enterprise Intelligence?",
+      "score": 1,
+      "secs": 4.0,
+      "ans": "Mindpod's Enterprise Intelligence model has five layers, in sequence: 1) Strategic Intelligence \u2014 fractional CTO, roadmaps, AI strategy. 2) AI Governance & Security \u2014 agentic AI controls, approval gates, evidence trails. 3) Cloud & Infrastructure Intelligence \u2014 Azure, AWS, Google Cloud, M365, migration, disaster recovery, training. 4) Application & Automation Intelligence \u2014 custom apps, internal t"
+    },
+    {
+      "q": "How does Mindpod handle high-risk AI actions?",
+      "score": 0,
+      "secs": 3.2,
+      "ans": "Mindpod's risk-aware AI governance platform stops dangerous content before it leaves the company: a predictive risk engine scores every proposed AI action (e.g., a document's similarity to sanctioned content, a request's likelihood to produce defamatory content) and lets admins block or approve patterns, and a secure AI usage monitor tracks when people use AI \u2014 who they used it for, what tools, wh"
+    },
+    {
+      "q": "Can Mindpod help a law firm adopt AI safely?",
+      "score": 0,
+      "secs": 3.2,
+      "ans": "Yes. Mindpod helps law firms adopt AI without compromising compliance, security, or ethical obligations. The firm can keep sensitive data \u2014 no client data ever touches the cloud without explicit approval. Everything is configured to a strict, auditable baseline: no unapproved agents, no unapproved data handling, no unapproved clients see anything until it is approved. The client always has control"
+    },
+    {
+      "q": "What is the capital of Japan?",
+      "score": 1,
+      "secs": 0.4,
+      "ans": "The capital of Japan is Tokyo."
+    },
+    {
+      "q": "What is 17 times 24?",
+      "score": 1,
+      "secs": 0.6,
+      "ans": "17 times 24 is 408."
+    },
+    {
+      "q": "In one sentence, what is a TCP three-way handshake?",
+      "score": 1,
+      "secs": 1.4,
+      "ans": "The TCP three-way handshake is how a TCP connection is established: the client sends a SYN segment to the server, the server responds with a SYN-ACK, and the client acknowledges with an ACK."
+    },
+    {
+      "q": "Write a haiku about rain.",
+      "score": 1,
+      "secs": 0.8,
+      "ans": "Wetness on the road,\nDripping from the sky,\nA storm in three lines."
+    }
+  ]
+}

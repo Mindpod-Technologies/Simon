@@ -1,0 +1,68 @@
+{
+  "model": "qwen3:8b",
+  "facts": "0/16",
+  "controls": "4/4",
+  "total_s": 170.0,
+  "results": [
+    {
+      "q": "What were the Michael scanner's recall and precision figures?",
+      "score": 0,
+      "secs": 16.6,
+      "ans": "The term \"Michael scanner\" does not correspond to any widely recognized system, device, or project in my training data. Recall and precision are evaluation metrics used in machine learning for classification tasks, but they are not typically associated with hardware devices like a \"scanner\" unless specified in a particular context (e.g., a machine learning model trained for object detection or ima"
+    },
+    {
+      "q": "Who founded Mindpod Technologies?",
+      "score": 0,
+      "secs": 11.1,
+      "ans": "Mindpod Technologies was founded by **Ankit Agarwal**. He serves as the CEO and co-founder of the company, which specializes in creating interactive content platforms. The company was established in 2015. While Ankit is the primary founder, it's possible the company was co-founded by a team, but he is the most prominently recognized founder."
+    },
+    {
+      "q": "Where is Mindpod Technologies based?",
+      "score": 0,
+      "secs": 10.8,
+      "ans": "Mindpod Technologies is a company that provides AI and technology solutions, but as of my last update in October 2023, specific details about its headquarters location were not widely publicized in mainstream sources. The company may operate from various locations, including India (a common hub for tech firms) or other global tech centers. For the most accurate and up-to-date information, I recomm"
+    },
+    {
+      "q": "What are Mindpod's five layers of Enterprise Intelligence?",
+      "score": 0,
+      "secs": 20.5,
+      "ans": "Mindpod's five layers of Enterprise Intelligence are designed to provide a comprehensive framework for leveraging data and AI to drive business outcomes. While specific details may vary depending on the context or product offering, here's a general structure based on common enterprise intelligence models and Mindpod's likely approach:\n\n1. **Data Layer (Foundation)**  \n   - Focuses on **data collec"
+    },
+    {
+      "q": "How does Mindpod handle high-risk AI actions?",
+      "score": 0,
+      "secs": 19.0,
+      "ans": "As of my knowledge cutoff in July 2024, there is no widely recognized or publicly documented entity called \"Mindpod\" that is specifically known for handling high-risk AI actions. If you are referring to a specific company, research organization, or hypothetical scenario, please provide additional context so I can offer a more accurate response.\n\nIn general, companies and organizations that develop"
+    },
+    {
+      "q": "Can Mindpod help a law firm adopt AI safely?",
+      "score": 0,
+      "secs": 33.3,
+      "ans": "Yes, **Mindpod** can help a law firm adopt AI safely, but its success depends on how the firm integrates the platform into its workflows while addressing key risks and ethical considerations. Here's a structured breakdown of how Mindpod can support safe AI adoption, along with critical factors to consider:\n\n---\n\n### **1. Key Benefits of Mindpod for Safe AI Adoption**\n- **Data Security & Compliance"
+    },
+    {
+      "q": "What is the capital of Japan?",
+      "score": 1,
+      "secs": 5.8,
+      "ans": "The capital of Japan is **Tokyo**. It is the most populous city in the country and serves as the political, economic, and cultural center of Japan. While Kyoto was the imperial capital during the Edo period (1603\u20131868), Tokyo has been the de facto capital since the Meiji Restoration in 1868."
+    },
+    {
+      "q": "What is 17 times 24?",
+      "score": 1,
+      "secs": 34.3,
+      "ans": "To calculate $17 \\times 24$, we can use the **distributive property** to break the multiplication into simpler parts. Here's the step-by-step breakdown:\n\n1. **Break down 24**:  \n   $24 = 20 + 4$  \n   So, $17 \\times 24 = 17 \\times (20 + 4)$.\n\n2. **Multiply each part separately**:  \n   - $17 \\times 20 = 340$  \n   - $17 \\times 4 = 68$\n\n3. **Add the results**:  \n   $340 + 68 = 408$\n\n---\n\n**Verificatio"
+    },
+    {
+      "q": "In one sentence, what is a TCP three-way handshake?",
+      "score": 1,
+      "secs": 11.6,
+      "ans": "The TCP three-way handshake is the process of synchronizing sequence numbers and confirming connection establishment through three messages: the client sends a SYN, the server responds with a SYN-ACK, and the client acknowledges with an ACK."
+    },
+    {
+      "q": "Write a haiku about rain.",
+      "score": 1,
+      "secs": 7.0,
+      "ans": "Rain taps the window  \ndripping from the eaves in steady rhythm\u2014  \nearth drinks the silence."
+    }
+  ]
+}

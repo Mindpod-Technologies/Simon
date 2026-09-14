@@ -1113,3 +1113,29 @@ The settings surface specced in §37 is now real.
 - 4 new tests (`tests/test_settings_api.py`); suite at 152 passing.
 - Verified live: `/settings` renders all 8 sections with secrets masked;
   chat/Slack/Telegram unaffected by the restart flow.
+
+
+## 39. Fine-tuned fast tier via Soup (v1.6.0 candidate) — 2026-09-14
+
+Piloted Soup (Apache-2.0 fine-tuning CLI, github.com/MakazhanAlpamys/Soup)
+to build a Mindpod-native fast model. Pipeline: `~/simon/tools/soup/`.
+
+- Corpus: 134 alpaca examples transcribed verbatim from mindpodtech.com
+  (company, five layers, MITB, AngelMind + Michael benchmark v1, SupplyMind,
+  Quotewren pricing, industries, Simon Work, team) + 90 general alpaca
+  replay examples against catastrophic forgetting.
+- Training: LoRA r=32 (q/v proj, all 36 layers) on mlx-community/Qwen3-8B-4bit,
+  MLX backend, ~765 iters across slices (lr 1e-4 → 2e-5), val loss 7.0 → 0.15.
+- Findings (20-question eval: 16 Mindpod facts + 4 general controls):
+  - base qwen3:8b: 0/16 facts, 4/4 controls, ~18s/answer (thinking)
+  - v1 (domain-only, deep): 11/16 facts but 2/4 controls — catastrophic
+    forgetting; replay data is mandatory
+  - v3 Q4_K_M: 1/16 — shallow LoRA deltas do not survive 4-bit→f16→Q4
+    double quantization; Q6_K: 9/16; **Q8_0: 10/16 facts, 4/4 controls,
+    ~2.7s/answer — shipped as `mindpod-qwen3:v3-q8`**
+- Residual misses are precise-number/name recall; production covers these
+  via memory injection (raw-model eval is worst-case by design).
+- `LLM_MODEL_FAST=mindpod-qwen3:v3-q8` in .env; smoke-tested in production:
+  correct one-line AngelMind answer. gpt-oss:20b remains the smart tier.
+- Lesson for Simon Work: fine-tune for style/structure/domain prose,
+  memory/RAG for exact figures. Quantize fine-tunes at Q8_0.
