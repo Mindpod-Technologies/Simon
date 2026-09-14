@@ -55,7 +55,10 @@ def _resolve_bin(name: str) -> str:
             return cand
     return name  # let subprocess raise FileNotFoundError -> clean message
 
-_SAFE_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR")
+_SAFE_ENV_KEYS = ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR",
+                  # Headless auth for the claude engine (setup-token); not an
+                  # API-key pattern, so the secret-scrub tests still hold.
+                  "CLAUDE_CODE_OAUTH_TOKEN")
 
 
 def _resolve_cwd(workspace_root: Path, rel: str) -> Path:
