@@ -30,7 +30,8 @@ _MAX_OUT = 6000            # chars returned to the model
 
 _ENGINES = {
     "claude": lambda task: ["claude", "-p", task, "--output-format", "text"],
-    "codex": lambda task: ["codex", "exec", task],
+    "codex": lambda task: ["codex", "exec", "--sandbox", "workspace-write",
+                           task],
     "cursor": lambda task: ["cursor-agent", "-p", task,
                             "--output-format", "text"],
 }
@@ -122,11 +123,14 @@ def register_dev_delegate_tools(registry, settings) -> None:
         name="delegate_dev",
         description=(
             "Delegate a coding/development task to an external coding CLI "
-            "('claude' or 'codex'), run headless in a directory under the "
-            "workspace. Use for substantial implementation work that benefits "
-            "from a dedicated coding agent; results return when the engine "
-            "finishes (up to 25 min). engine defaults to 'claude'; path is "
-            "relative to the workspace root."
+            "('claude', 'codex', or 'cursor'), run headless in a directory "
+            "under the workspace. ALWAYS prefer this tool when the user asks "
+            "to delegate, hand off, or have Claude/Codex/Cursor do coding "
+            "work — do NOT substitute GitHub/file tools for it. Use for "
+            "substantial implementation work that benefits from a dedicated "
+            "coding agent; results return when the engine finishes (up to "
+            "25 min). engine defaults to 'claude'; path is relative to the "
+            "workspace root."
         ),
         parameters={
             "type": "object",

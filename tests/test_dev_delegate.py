@@ -106,7 +106,8 @@ def test_codex_command_shape(tmp_path):
     with mock.patch.object(subprocess, "run", fake_run):
         dev_delegate.delegate_dev(s, "add tests", engine="codex")
     assert captured["cmd"][0].endswith("codex")
-    assert captured["cmd"][1:] == ["exec", "add tests"]
+    assert captured["cmd"][1:] == ["exec", "--sandbox", "workspace-write",
+                                   "add tests"]
 
 
 def test_cursor_command_shape(tmp_path):
