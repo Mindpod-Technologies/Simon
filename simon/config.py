@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     # Safety
     simon_allow_shell: bool = False
     simon_workspace_dir: str = "./workspace"
+    # External coding-CLIs (Claude Code / Codex) as delegatable dev engines.
+    # Off by default; engines use their own logins, never Simon's secrets.
+    simon_dev_delegate_enabled: bool = False
 
     # Commercial licensing (see COMMERCIAL.md). Empty key + require=false
     # runs as a free "trial" plan, so personal self-hosted use is unaffected.

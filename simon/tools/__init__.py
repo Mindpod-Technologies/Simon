@@ -165,6 +165,13 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
         except Exception as exc:  # noqa: BLE001
             log.warning("computer-use tools unavailable: %s", exc)
 
+    try:
+        from . import dev_delegate
+
+        dev_delegate.register_dev_delegate_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("dev-delegate tools unavailable: %s", exc)
+
     if getattr(settings, "simon_browser_enabled", True):
         try:
             from . import browser
