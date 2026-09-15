@@ -149,6 +149,12 @@ async def _run_all() -> None:
 
 def cmd_all() -> None:
     """Run server + configured interfaces + scheduler via asyncio."""
+    # Diagnostics: `kill -USR1 <pid>` dumps all thread stacks to stderr —
+    # invaluable when a turn hangs in the long-lived launchd process.
+    import faulthandler
+    import signal
+
+    faulthandler.register(signal.SIGUSR1)
     asyncio.run(_run_all())
 
 

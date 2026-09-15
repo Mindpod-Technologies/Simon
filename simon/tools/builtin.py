@@ -3,6 +3,7 @@ access, optional shell, notes, and long-term fact memory."""
 from __future__ import annotations
 
 import ast
+import concurrent.futures
 import logging
 import operator
 import re
@@ -129,6 +130,34 @@ def _fetch_url(url: str) -> str:
 
 # ------------------------------------------------- workspace-confined files
 
+_FS_TIMEOUT = 15  # seconds
+
+
+def _fs_guard(op, desc: str) -> str:
+    """Run a filesystem op with a hard timeout.
+
+    macOS TCC *blocks* (rather than fails) file calls when the hosting
+    process lacks Files & Folders consent — a pending permission dialog
+    would otherwise hang the agent turn forever. Time out with an
+    actionable message instead; the stuck worker thread is abandoned and
+    completes whenever consent is eventually granted.
+    """
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = pool.submit(op)
+    try:
+        return future.result(timeout=_FS_TIMEOUT)
+    except concurrent.futures.TimeoutError:
+        return (
+            f"Error: macOS is blocking access to {desc}. The request timed "
+            f"out waiting for a privacy permission prompt. Click Allow on "
+            f"the macOS permission dialog, or grant access under System "
+            f"Settings → Privacy & Security → Files and Folders (or Full "
+            f"Disk Access) for Simon's Python, then try again."
+        )
+    finally:
+        pool.shutdown(wait=False)
+
+
 def _workspace_root(settings) -> Path:
     root = Path(settings.simon_workspace_dir).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -160,15 +189,26 @@ def _resolve_in_workspace(settings, path: str) -> Path:
 
 def _read_file(settings, path: str) -> str:
     target = _resolve_in_workspace(settings, path)
-    if not target.is_file():
-        return f"Error: no such file in workspace: {path}"
-    return target.read_text(encoding="utf-8", errors="replace")
+
+    def _op() -> str:
+        if not target.is_file():
+            return f"Error: no such file in workspace: {path}"
+        return target.read_text(encoding="utf-8", errors="replace")
+
+    return _fs_guard(_op, str(target))
 
 
 def _write_file(settings, path: str, content: str) -> str:
     target = _resolve_in_workspace(settings, path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+
+    def _op() -> str:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return ""
+
+    err = _fs_guard(_op, str(target))
+    if err.startswith("Error:"):
+        return err
     try:
         display = str(target.relative_to(_workspace_root(settings)))
     except ValueError:
@@ -178,12 +218,16 @@ def _write_file(settings, path: str, content: str) -> str:
 
 def _list_files(settings, path: str = ".") -> str:
     target = _resolve_in_workspace(settings, path)
-    if not target.is_dir():
-        return f"Error: no such directory in workspace: {path}"
-    entries = sorted(
-        f"{p.name}/" if p.is_dir() else p.name for p in target.iterdir()
-    )
-    return "\n".join(entries) if entries else "(empty directory)"
+
+    def _op() -> str:
+        if not target.is_dir():
+            return f"Error: no such directory in workspace: {path}"
+        entries = sorted(
+            f"{p.name}/" if p.is_dir() else p.name for p in target.iterdir()
+        )
+        return "\n".join(entries) if entries else "(empty directory)"
+
+    return _fs_guard(_op, str(target))
 
 
 # -------------------------------------------------------------------- shell
