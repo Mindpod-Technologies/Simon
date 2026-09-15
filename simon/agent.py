@@ -635,8 +635,9 @@ class Agent:
     @staticmethod
     def _looks_like_false_refusal(reply: str, user_text: str) -> bool:
         """True when the reply refuses a file/tool task the agent is
-        actually permitted to do — a cautious-model artifact, not policy."""
-        text = (reply or "").lower()
+        actually permitted to do — a cautious-model artifact, not policy.
+        Apostrophes are normalised first: models love curly quotes."""
+        text = (reply or "").lower().replace("’", "'")
         refusal = any(p in text for p in (
             "cannot access", "can't access", "do not have permission",
             "don't have permission", "not have permission",

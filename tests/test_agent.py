@@ -255,3 +255,21 @@ def test_present_continuous_claim_is_dishonest(tmp_path, monkeypatch):
         "to research the history of the spork.")
     assert agent._looks_dishonest("I'm now queuing that for you, sir.")
     assert not agent._looks_dishonest("I am Simon, at your service, sir.")
+
+
+def test_false_refusal_detects_curly_apostrophes():
+    """Models emit curly quotes (don’t) — the guard must still fire."""
+    from simon.agent import Agent
+    assert Agent._looks_like_false_refusal(
+        "I’m sorry, sir, but I don’t have permission to read files "
+        "on your local machine.",
+        "use the list_files tool on ~/Desktop")
+    assert Agent._looks_like_false_refusal(
+        "I don’t have access to your local filesystem.",
+        "what files are on my desktop")
+    # Genuine inability without file intent stays quiet.
+    assert not Agent._looks_like_false_refusal(
+        "I cannot reach external email, sir.", "what time is it")
+    # Normal answers never trigger.
+    assert not Agent._looks_like_false_refusal(
+        "Here are your files, sir.", "list files on desktop")
