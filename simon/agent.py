@@ -178,6 +178,16 @@ class Agent:
             except Exception:  # pragma: no cover - never break a turn
                 pass
 
+        # Frontier tier: an explicit request ("use kimi", "ask the frontier
+        # model") sends the whole turn to the cloud model when configured.
+        wants_frontier = getattr(self.llm, "wants_frontier", None)
+        if (callable(wants_frontier)
+                and getattr(self.llm, "frontier_enabled", False)
+                and wants_frontier(user_text)):
+            model = self.llm.model_frontier
+            self.llm.last_route_reason = "explicit frontier request"
+            logger.info("router: explicit frontier request → %s", model)
+
         reply = ""
         tool_errors = 0
         tools_used: list[str] = []
@@ -186,11 +196,27 @@ class Agent:
         self.last_turn_exhausted = False
         t0 = time.monotonic()
         for _ in range(MAX_ITERATIONS):
-            if model is None:
-                result = self.llm.chat(messages, tools=schemas or None)
-            else:
-                result = self.llm.chat(messages, tools=schemas or None,
-                                       model=model)
+            try:
+                if model is None:
+                    result = self.llm.chat(messages, tools=schemas or None)
+                else:
+                    result = self.llm.chat(messages, tools=schemas or None,
+                                           model=model)
+            except Exception:
+                # Local tier unreachable/failed (e.g. Ollama down): fall back
+                # to the frontier model for the rest of this turn when one
+                # is configured, rather than erroring out to the interface.
+                frontier_model = getattr(self.llm, "model_frontier", "")
+                if (getattr(self.llm, "frontier_enabled", False)
+                        and model != frontier_model):
+                    logger.warning("model call failed — escalating turn to "
+                                   "frontier model %s", frontier_model,
+                                   exc_info=True)
+                    model = frontier_model
+                    escalated = True
+                    self.llm.last_route_reason = "local model failure"
+                    continue
+                raise
             tool_calls = result.get("tool_calls") or []
             if not tool_calls:
                 reply = result.get("content") or ""
@@ -257,10 +283,27 @@ class Agent:
                 model = self.llm.model
                 escalated = True
         else:
-            reply = ("I do apologise, sir — I seem to have tied myself in "
-                     "knots with tools. Perhaps we might try that again, "
-                     "more simply?")
-            self.last_turn_exhausted = True
+            # Loop exhausted on local tiers: give the frontier model one clean
+            # shot at a final answer (no tools, so it cannot loop) before
+            # apologising to the user.
+            frontier_model = getattr(self.llm, "model_frontier", "")
+            if (getattr(self.llm, "frontier_enabled", False)
+                    and model != frontier_model):
+                try:
+                    result = self.llm.chat(messages, model=frontier_model)
+                    candidate = (result.get("content") or "").strip()
+                    if candidate:
+                        reply = candidate
+                        escalated = True
+                        model = frontier_model
+                        self.llm.last_route_reason = "frontier rescue"
+                except Exception:
+                    logger.exception("frontier rescue failed")
+            if not reply:
+                reply = ("I do apologise, sir — I seem to have tied myself in "
+                         "knots with tools. Perhaps we might try that again, "
+                         "more simply?")
+                self.last_turn_exhausted = True
 
         reply = reply or "Very good, sir. (No further response was required.)"
 

@@ -61,6 +61,12 @@ SETTING_DEFS = [
        help="simple turns; empty = one model for everything (default qwen3:8b)"),
     _d("Brain", "LLM_ROUTER_ENABLED", "Model router", "toggle",
        help="route simple turns to the fast model automatically"),
+    _d("Brain", "LLM_FRONTIER_BASE_URL", "Frontier endpoint",
+       help="e.g. https://api.moonshot.ai/v1 for Kimi K3"),
+    _d("Brain", "LLM_FRONTIER_MODEL", "Frontier model",
+       help="e.g. kimi-k3 — explicit requests and local failures land here"),
+    _d("Brain", "LLM_FRONTIER_API_KEY", "Frontier API key", "password",
+       help="empty = frontier tier off; sk-… from platform.moonshot.ai"),
     # Channels
     _d("Channels", "TELEGRAM_BOT_TOKEN", "Telegram bot token", "password"),
     _d("Channels", "TELEGRAM_ALLOWED_USER_IDS", "Telegram allowed user IDs",

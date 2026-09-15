@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     llm_model_fast: str = ""
     llm_router_enabled: bool = False
 
+    # Frontier tier (optional cloud model, e.g. Kimi K3 via Moonshot AI):
+    # active only when llm_frontier_api_key is set. Explicit user requests
+    # ("use kimi", "ask the frontier model") route the whole turn here, and
+    # local-tier failures escalate here as the last resort before
+    # apologising to the user.
+    llm_frontier_base_url: str = "https://api.moonshot.ai/v1"
+    llm_frontier_model: str = "kimi-k3"
+    llm_frontier_api_key: str = ""
+    llm_frontier_reasoning_effort: str = "high"
+
     # Voice
     tts_voice: str = "en-GB-RyanNeural"
     tts_rate: str = "+0%"

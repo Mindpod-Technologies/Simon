@@ -22,6 +22,12 @@ SMART_OVERRIDE_PHRASES = (
     "use the big brain", "be thorough", "full analysis",
 )
 
+# Explicit user overrides that force the frontier (cloud) model for the turn.
+FRONTIER_OVERRIDE_PHRASES = (
+    "use kimi", "ask kimi", "kimi k3", "use the frontier",
+    "frontier model", "use frontier", "biggest brain",
+)
+
 # Task shapes that benefit from the larger model.
 SMART_KEYWORDS = (
     "compare", "versus", " vs ", "pros and cons", "research", "analyse",
@@ -145,6 +151,28 @@ class LLM:
             and settings.llm_model_fast != settings.llm_model)
         self.last_route_reason: str = ""
 
+        # Frontier tier (optional cloud model, e.g. Kimi K3): only active
+        # when an API key is configured. Used for explicit user requests and
+        # as the escalation of last resort when the local tiers fail.
+        self.model_frontier: str = getattr(
+            settings, "llm_frontier_model", "") or ""
+        frontier_key = getattr(settings, "llm_frontier_api_key", "") or ""
+        self.frontier_enabled: bool = bool(frontier_key and
+                                           self.model_frontier)
+        self._frontier_client: Optional[OpenAI] = None
+        self._frontier_extra: dict[str, Any] = {}
+        if self.frontier_enabled:
+            self._frontier_client = OpenAI(
+                base_url=getattr(settings, "llm_frontier_base_url", "")
+                or "https://api.moonshot.ai/v1",
+                api_key=frontier_key,
+            )
+            effort = getattr(
+                settings, "llm_frontier_reasoning_effort", "") or ""
+            if effort:
+                self._frontier_extra["extra_body"] = {
+                    "reasoning_effort": effort}
+
     def route_model(self, user_text: str, history_len: int,
                     memory_hits: int) -> str:
         """Return the model to use for a turn (router; off → default model)."""
@@ -157,6 +185,11 @@ class LLM:
         log.info("router: '%.40s…' → %s (%s)", user_text, model, reason)
         return model
 
+    def wants_frontier(self, user_text: str) -> bool:
+        """True when the user explicitly asks for the frontier model."""
+        low = f" {(user_text or '').lower()} "
+        return any(p in low for p in FRONTIER_OVERRIDE_PHRASES)
+
     def chat(self, messages: list[dict],
              tools: Optional[list[dict]] = None,
              model: Optional[str] = None) -> dict:
@@ -166,9 +199,28 @@ class LLM:
         "tool_calls": [{"id", "name", "arguments": dict}]}``. Robust to
         empty/odd responses: missing content becomes ``None`` and malformed
         tool-call arguments fall back to an empty dict.
+
+        When ``model`` names the frontier model and a frontier key is
+        configured, the request goes to the frontier endpoint; Ollama-specific
+        sampling extras are not applied there.
         """
-        kwargs: dict[str, Any] = {"model": model or self.model,
-                                  "messages": messages}
+        model = model or self.model
+        if (self.frontier_enabled and self._frontier_client is not None
+                and model == self.model_frontier):
+            kwargs: dict[str, Any] = {"model": model, "messages": messages}
+            kwargs.update(self._frontier_extra)
+            if tools:
+                kwargs["tools"] = tools
+            response = self._frontier_client.chat.completions.create(**kwargs)
+            if not response.choices:
+                return {"content": None, "tool_calls": []}
+            message = response.choices[0].message
+            return {
+                "content": message.content or None,
+                "tool_calls": self._normalize_tool_calls(message),
+            }
+
+        kwargs = {"model": model, "messages": messages}
         kwargs.update(self._extra)
         if tools:
             kwargs["tools"] = tools
