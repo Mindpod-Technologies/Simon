@@ -223,6 +223,27 @@ def test_looks_cut_off_distinguishes_brief_from_truncated():
     assert Agent._looks_cut_off("Let me check,")
 
 
+def test_interactive_tracker_marks_user_turns_only(tmp_path, monkeypatch):
+    """Background model work yields to live user turns: user-interface turns
+    mark the tracker; scheduler/job interfaces must not."""
+    from simon import agent as agent_mod
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    agent_mod.LAST_INTERACTIVE.update(started=0.0, finished=0.0)
+    assert not agent_mod.interactive_session_active(window_s=60)
+
+    web = Agent(Settings(), registry=DummyRegistry(), session_id="t1",
+                llm=FakeLLM(), interface="web")
+    web.handle("Fetch my tea, would you?")
+    assert agent_mod.interactive_session_active(window_s=60)
+
+    agent_mod.LAST_INTERACTIVE.update(started=0.0, finished=0.0)
+    bg = Agent(Settings(), registry=DummyRegistry(), session_id="t2",
+               llm=FakeLLM(), interface="scheduler")
+    bg.handle("Background mail check (autonomous).")
+    assert not agent_mod.interactive_session_active(window_s=60)
+
+
 def test_present_continuous_claim_is_dishonest(tmp_path, monkeypatch):
     """'I am starting a background job' with no tool call must trigger."""
     monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",

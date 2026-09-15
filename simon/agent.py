@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import functools
 import json
 import logging
 import re
@@ -16,6 +17,35 @@ from .persona import SIMON_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 MAX_ITERATIONS = 5
+
+# Interactive-turn tracker: background model work (mail checks, scheduled
+# tasks) yields to live user turns. On a single-GPU local setup every
+# background job evicts the chat model (OLLAMA_MAX_LOADED_MODELS=1) and
+# stalls the user's next message for a full model reload.
+LAST_INTERACTIVE = {"started": 0.0, "finished": 0.0}
+_BACKGROUND_INTERFACES = {"scheduler", "job", "eval"}
+
+
+def interactive_session_active(window_s: float = 150.0) -> bool:
+    """True when a user turn is in flight or ended within ``window_s``."""
+    if LAST_INTERACTIVE["started"] > LAST_INTERACTIVE["finished"]:
+        return True  # a turn is running right now
+    return (time.time() - LAST_INTERACTIVE["finished"]) < window_s
+
+
+def _track_interactive(fn):
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        interactive = (getattr(self, "interface", "")
+                       not in _BACKGROUND_INTERFACES)
+        if interactive:
+            LAST_INTERACTIVE["started"] = time.time()
+        try:
+            return fn(self, *args, **kwargs)
+        finally:
+            if interactive:
+                LAST_INTERACTIVE["finished"] = time.time()
+    return wrapper
 
 # Matches replies that CLAIM a completed action ("I have set up …", "the
 # automation is now active", "I have now called the tool …"). Used by the
@@ -102,6 +132,7 @@ class Agent:
             from .tools import build_default_registry
             self.registry = build_default_registry(self.settings)
 
+    @_track_interactive
     def handle(self, user_text: str) -> str:
         """Handle one user turn; record an 'error' event if the turn crashes."""
         try:

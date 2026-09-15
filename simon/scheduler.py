@@ -175,6 +175,14 @@ class Scheduler:
         """
         if self.agent_factory is None:
             return
+        # Interactive priority: on this single-GPU machine a background mail
+        # run evicts the chat model and stalls the user's next message —
+        # skip this tick if the owner is mid-conversation; the next tick is
+        # only minutes away.
+        from . import agent as agent_mod
+        if agent_mod.interactive_session_active():
+            logger.info("mail check deferred — interactive session active")
+            return
         try:
             agent = self.agent_factory()
             reply = agent.handle(
@@ -314,6 +322,13 @@ class Scheduler:
     async def _run_scheduled_task(self, schedule_id: int) -> None:
         """Execute one user-defined recurring task and deliver the result."""
         if self.agent_factory is None:
+            return
+        # Interactive priority: yield when the owner is mid-conversation;
+        # the task fires on the next sync instead of stalling their chat.
+        from . import agent as agent_mod
+        if agent_mod.interactive_session_active():
+            logger.info("scheduled task %d deferred — interactive session "
+                        "active", schedule_id)
             return
         row = next((r for r in schedules.list_schedules(active_only=True)
                     if r["id"] == schedule_id), None)
