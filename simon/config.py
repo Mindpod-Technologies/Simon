@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     # Safety
     simon_allow_shell: bool = False
     simon_workspace_dir: str = "./workspace"
+    # Extra directories the file tools may read/write beyond the workspace
+    # (comma-separated, ~ allowed). Empty = workspace only. This is the
+    # "access my Mac's files" switch — each entry is read AND write.
+    simon_allowed_dirs: str = ""
     # External coding-CLIs (Claude Code / Codex) as delegatable dev engines.
     # Off by default; engines use their own logins, never Simon's secrets.
     simon_dev_delegate_enabled: bool = False

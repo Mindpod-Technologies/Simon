@@ -135,11 +135,24 @@ def _workspace_root(settings) -> Path:
     return root
 
 
+def _allowed_roots(settings) -> list[Path]:
+    """Workspace plus any owner-configured extra directories."""
+    roots = [_workspace_root(settings)]
+    extra = getattr(settings, "simon_allowed_dirs", "") or ""
+    for part in extra.split(","):
+        part = part.strip()
+        if part:
+            resolved = Path(part).expanduser().resolve()
+            if resolved.is_dir():
+                roots.append(resolved)
+    return roots
+
+
 def _resolve_in_workspace(settings, path: str) -> Path:
-    root = _workspace_root(settings)
-    target = (root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
-    if target != root and root not in target.parents:
-        raise PermissionError(f"path '{path}' escapes the workspace directory")
+    roots = _allowed_roots(settings)
+    target = (roots[0] / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    if not any(target == root or root in target.parents for root in roots):
+        raise PermissionError(f"path '{path}' escapes the allowed directories")
     return target
 
 
@@ -154,7 +167,11 @@ def _write_file(settings, path: str, content: str) -> str:
     target = _resolve_in_workspace(settings, path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
-    return f"Wrote {len(content)} characters to {target.relative_to(_workspace_root(settings))}"
+    try:
+        display = str(target.relative_to(_workspace_root(settings)))
+    except ValueError:
+        display = str(target)  # inside an extra allowed dir, not workspace
+    return f"Wrote {len(content)} characters to {display}"
 
 
 def _list_files(settings, path: str = ".") -> str:

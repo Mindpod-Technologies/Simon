@@ -131,6 +131,28 @@ def test_file_tools_roundtrip_and_confinement(tmp_path):
     assert reg.call("write_file", {"path": "/etc/evil", "content": "x"}).startswith("Error:")
 
 
+def test_file_tools_extra_allowed_dirs(tmp_path):
+    """SIMON_ALLOWED_DIRS grants read+write beyond the workspace — the
+    'access my Mac's files' switch — while everything else stays refused."""
+    workspace = tmp_path / "ws"
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "note.txt").write_text("hello from docs")
+    settings = make_settings(str(workspace))
+    settings.simon_allowed_dirs = str(docs)
+    reg = build_default_registry(settings)
+    # read/list/write inside the extra dir all work (absolute paths)
+    assert reg.call("read_file", {"path": str(docs / "note.txt")}) == "hello from docs"
+    assert reg.call("write_file", {"path": str(docs / "new.txt"),
+                                   "content": "x"}).startswith("Wrote")
+    assert (docs / "new.txt").read_text() == "x"
+    assert "note.txt" in reg.call("list_files", {"path": str(docs)})
+    # anything outside workspace + allowed dirs is still refused
+    assert reg.call("read_file", {"path": "/etc/passwd"}).startswith("Error:")
+    assert reg.call("write_file", {"path": str(tmp_path / "evil.txt"),
+                                   "content": "x"}).startswith("Error:")
+
+
 def test_shell_not_registered_by_default(tmp_path):
     reg = build_default_registry(make_settings(tmp_path, allow_shell=False))
     assert "run_shell" not in reg

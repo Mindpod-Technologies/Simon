@@ -89,6 +89,9 @@ SETTING_DEFS = [
     _d("Safety", "SIMON_BROWSER_ENABLED", "Browser automation", "toggle"),
     _d("Safety", "SIMON_BROWSER_HEADLESS", "Browser headless", "toggle"),
     _d("Safety", "SIMON_COMPUTER_USE", "Computer control (Mac)", "toggle"),
+    _d("Safety", "SIMON_ALLOWED_DIRS", "Extra file-access directories",
+       help="comma-separated, ~ allowed (e.g. ~/Documents,~/Desktop); "
+            "read+write — empty = workspace only"),
     _d("Safety", "SIMON_AZURE_ENABLED", "Azure read-only tools", "toggle"),
     _d("Safety", "SIMON_AZURE_ALLOW_WRITE", "Azure write tools", "toggle",
        help="VM start/stop/restart — enable only if desired"),
