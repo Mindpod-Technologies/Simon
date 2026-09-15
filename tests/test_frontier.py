@@ -195,6 +195,52 @@ def test_named_tool_routes_to_smart_model(tmp_path, monkeypatch):
     assert llm.last_route_reason == "named tool"
 
 
+class _FileRegistry:
+    def schemas(self):
+        return [{"type": "function", "function": {
+            "name": "list_files",
+            "description": "List files in a directory.",
+            "parameters": {"type": "object", "properties": {}}}}]
+
+    def call(self, name, args):
+        return "report.pdf\nnotes.txt"
+
+
+class RefusingFakeLLM(FrontierFakeLLM):
+    """Refuses the file request from caution, then complies when nudged."""
+
+    def __init__(self):
+        super().__init__()
+        self.calls = 0
+
+    def chat(self, messages, tools=None, model=None):
+        self.seen_models.append(model)
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": ("I'm sorry, sir, but I don't have permission "
+                                "to read files on your local machine."),
+                    "tool_calls": []}
+        if self.calls == 2:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "list_files",
+                "arguments": {"path": "/Users/x/Desktop"}}]}
+        return {"content": "Your Desktop holds report.pdf and notes.txt, sir.",
+                "tool_calls": []}
+
+
+def test_false_refusal_is_nudged_into_tool_call(tmp_path, monkeypatch):
+    """A refusal for a permitted file task must end in a real tool call and
+    a grounded answer — not an apology."""
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    llm = RefusingFakeLLM()
+    agent = Agent(Settings(), registry=_FileRegistry(),
+                  session_id="refusal-test", llm=llm)
+    reply = agent.handle("use the list_files tool on ~/Desktop")
+    assert "report.pdf" in reply
+    assert llm.calls >= 2
+
+
 def test_local_failure_escalates_to_frontier(tmp_path, monkeypatch):
     llm = FailingFakeLLM()
     agent = _agent(tmp_path, monkeypatch, llm)

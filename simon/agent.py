@@ -526,6 +526,65 @@ class Agent:
                     "Could you ask me once more? I shall action it properly "
                     "this time.")
 
+        # False-refusal guard: a cautious model sometimes declines a task it
+        # has a permitted tool for ("I don't have permission to read files
+        # on your machine") without ever calling anything. When the request
+        # shows file/tool intent, nudge it to actually use the tool — the
+        # owner explicitly authorized the allowed directories.
+        if (not tools_used
+                and self._looks_like_false_refusal(reply, user_text)):
+            logger.warning("false refusal without tool call — nudging")
+            refusal_messages = messages + [
+                {"role": "assistant", "content": reply},
+                {"role": "user", "content": (
+                    "That refusal was wrong. The owner has explicitly "
+                    "authorized your file tools for the workspace and the "
+                    "allowed directories — including the location in this "
+                    "request. Call the ONE tool that does what was asked "
+                    "(e.g. list_files / read_file) RIGHT NOW with the exact "
+                    "path given — then answer from its real output.")},
+            ]
+            try:
+                for _ in range(3):
+                    if model is None:
+                        result = self.llm.chat(refusal_messages,
+                                               tools=schemas or None)
+                    else:
+                        result = self.llm.chat(refusal_messages,
+                                               tools=schemas or None,
+                                               model=model)
+                    nudge_calls = result.get("tool_calls") or []
+                    if not nudge_calls:
+                        candidate = (result.get("content") or "").strip()
+                        if candidate:
+                            reply = candidate
+                        break
+                    refusal_messages.append({
+                        "role": "assistant",
+                        "content": result.get("content") or "",
+                        "tool_calls": [
+                            {"id": c["id"], "type": "function",
+                             "function": {"name": c["name"],
+                                          "arguments": json.dumps(
+                                              c["arguments"])}}
+                            for c in nudge_calls],
+                    })
+                    for c in nudge_calls[:3]:
+                        tools_used.append(c["name"])
+                        try:
+                            output = self.registry.call(c["name"],
+                                                        c["arguments"])
+                        except Exception:  # pragma: no cover - defensive
+                            output = f"Error: tool {c['name']} failed"
+                        refusal_messages.append({
+                            "role": "tool",
+                            "tool_call_id": c["id"],
+                            "content": str(output),
+                        })
+                regenerated = True
+            except Exception:
+                logger.exception("false-refusal nudge failed")
+
         if not tools_used and self._looks_cut_off(reply):
             logger.warning("degenerate reply (%d chars) — regenerating once",
                            len(reply.strip()))
@@ -572,6 +631,24 @@ class Agent:
             user_len=len(user_text),
         )
         return reply
+
+    @staticmethod
+    def _looks_like_false_refusal(reply: str, user_text: str) -> bool:
+        """True when the reply refuses a file/tool task the agent is
+        actually permitted to do — a cautious-model artifact, not policy."""
+        text = (reply or "").lower()
+        refusal = any(p in text for p in (
+            "cannot access", "can't access", "do not have permission",
+            "don't have permission", "not have permission",
+            "unable to access", "not able to access", "cannot read files",
+            "can't read files", "cannot browse your", "no permission"))
+        if not refusal:
+            return False
+        low = (user_text or "").lower()
+        return any(k in low for k in (
+            "file", "folder", "directory", "desktop", "documents",
+            "downloads", "list_files", "read_file", "write_file",
+            "on my mac", "on this mac"))
 
     @staticmethod
     def _looks_cut_off(reply: str) -> bool:
