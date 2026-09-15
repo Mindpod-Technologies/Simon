@@ -186,6 +186,15 @@ def test_normal_turn_stays_local(tmp_path, monkeypatch):
     assert llm.seen_models == ["fast-model"]
 
 
+def test_named_tool_routes_to_smart_model(tmp_path, monkeypatch):
+    """Tool-naming turns must not strand on the tool-less fast tier."""
+    llm = FrontierFakeLLM()
+    agent = _agent(tmp_path, monkeypatch, llm)
+    agent.handle("use the dummy tool please")
+    assert llm.seen_models == ["smart-model"]
+    assert llm.last_route_reason == "named tool"
+
+
 def test_local_failure_escalates_to_frontier(tmp_path, monkeypatch):
     llm = FailingFakeLLM()
     agent = _agent(tmp_path, monkeypatch, llm)

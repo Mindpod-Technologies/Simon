@@ -219,6 +219,18 @@ class Agent:
             self.llm.last_route_reason = "explicit frontier request"
             logger.info("router: explicit frontier request → %s", model)
 
+        # Naming a tool means the user expects a real call — the fast tier
+        # runs tool-less, so a tool-naming turn must go to the smart model.
+        if model is not None and model == getattr(self.llm, "model_fast", None):
+            low_text = user_text.lower()
+            try:
+                if any(s["function"]["name"] in low_text
+                       for s in (schemas or [])):
+                    model = self.llm.model
+                    self.llm.last_route_reason = "named tool"
+            except Exception:  # pragma: no cover - never break a turn
+                pass
+
         reply = ""
         tool_errors = 0
         tools_used: list[str] = []

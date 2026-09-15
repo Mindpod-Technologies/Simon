@@ -58,6 +58,10 @@ SMART_KEYWORDS = (
     "github", "repository", "repositories", "pull request", "merge request",
     "open an issue", "file an issue", "create a branch", "push a commit",
     "clone the", "fork the",
+    # Local file operations: the fast tier runs tool-less, so any turn about
+    # the owner's folders/files must route to the smart model's tools.
+    "desktop", "downloads", "documents folder", "my documents", "folder",
+    "directory", "list files", "on my mac", "on this mac",
 )
 
 
