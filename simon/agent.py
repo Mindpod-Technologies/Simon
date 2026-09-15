@@ -640,8 +640,11 @@ class Agent:
         refusal = any(p in text for p in (
             "cannot access", "can't access", "do not have permission",
             "don't have permission", "not have permission",
+            "don't have access", "do not have access",
+            "not have access to", "no access to your",
             "unable to access", "not able to access", "cannot read files",
-            "can't read files", "cannot browse your", "no permission"))
+            "can't read files", "cannot browse your", "no permission",
+            "cannot list", "unable to read", "not able to read"))
         if not refusal:
             return False
         low = (user_text or "").lower()
