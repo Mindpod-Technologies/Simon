@@ -475,7 +475,7 @@ class Agent:
                     "Could you ask me once more? I shall action it properly "
                     "this time.")
 
-        if not tools_used and len(reply.strip()) < 20:
+        if not tools_used and self._looks_cut_off(reply):
             logger.warning("degenerate reply (%d chars) — regenerating once",
                            len(reply.strip()))
             retry_messages = messages + [
@@ -490,7 +490,8 @@ class Agent:
                 else:
                     result = self.llm.chat(retry_messages, model=model)
                 candidate = (result.get("content") or "").strip()
-                if len(candidate) >= 20 and not result.get("tool_calls"):
+                if (candidate and not self._looks_cut_off(candidate)
+                        and not result.get("tool_calls")):
                     reply = candidate
                 else:
                     reply = ("I do apologise, sir — my thoughts came back "
@@ -520,6 +521,24 @@ class Agent:
             user_len=len(user_text),
         )
         return reply
+
+    @staticmethod
+    def _looks_cut_off(reply: str) -> bool:
+        """True when a reply looks truncated rather than intentionally brief.
+
+        The degenerate-reply guard must not fire on correct ultra-short
+        answers ("4", "yes", "Tuesday"). A reply counts as cut off only when
+        it is empty, ends on a comma/colon, or its last word cannot end a
+        sentence ("the", "is", "and", …) — all at any length.
+        """
+        text = (reply or "").strip()
+        if not text:
+            return True
+        dangling = ("and", "or", "but", "the", "a", "an", "to", "of", "is",
+                    "are", "was", "were", "with", "for", "on", "in", "at",
+                    "my", "your", "its", "their", "our")
+        last_word = re.sub(r"[^a-z]", "", text.split()[-1].lower())
+        return text[-1] in ",;:" or last_word in dangling
 
     @staticmethod
     def _extract_url(text: str) -> str:

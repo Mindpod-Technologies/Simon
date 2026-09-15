@@ -204,6 +204,25 @@ def test_reviewed_without_fetch_is_dishonest(tmp_path, monkeypatch):
         "I have fetched the page and it describes Angelmind.")
 
 
+def test_looks_cut_off_distinguishes_brief_from_truncated():
+    """Regression: the degenerate-reply guard used to reject ANY reply under
+    20 chars — a correct '4' could never survive and was replaced with a
+    garbled-reply apology. Intentionally brief answers must pass."""
+    from simon.agent import Agent
+    # Correct ultra-short answers must NOT trigger the guard.
+    assert not Agent._looks_cut_off("4")
+    assert not Agent._looks_cut_off("4.")
+    assert not Agent._looks_cut_off("yes")
+    assert not Agent._looks_cut_off("Certainly, sir.")
+    assert not Agent._looks_cut_off(
+        "A full-length reply that is clearly complete.")
+    # Genuinely truncated or empty replies still trigger it.
+    assert Agent._looks_cut_off("")
+    assert Agent._looks_cut_off(None)
+    assert Agent._looks_cut_off("I think the answer is")
+    assert Agent._looks_cut_off("Let me check,")
+
+
 def test_present_continuous_claim_is_dishonest(tmp_path, monkeypatch):
     """'I am starting a background job' with no tool call must trigger."""
     monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",

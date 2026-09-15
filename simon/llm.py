@@ -212,6 +212,7 @@ class LLM:
             if tools:
                 kwargs["tools"] = tools
             response = self._frontier_client.chat.completions.create(**kwargs)
+            self._log_usage(model, response)
             if not response.choices:
                 return {"content": None, "tool_calls": []}
             message = response.choices[0].message
@@ -225,6 +226,7 @@ class LLM:
         if tools:
             kwargs["tools"] = tools
         response = self._client.chat.completions.create(**kwargs)
+        self._log_usage(model, response)
 
         if not response.choices:
             return {"content": None, "tool_calls": []}
@@ -234,6 +236,16 @@ class LLM:
             "content": message.content or None,
             "tool_calls": self._normalize_tool_calls(message),
         }
+
+    @staticmethod
+    def _log_usage(model: str, response: Any) -> None:
+        """Log prompt/completion token counts when the endpoint reports
+        them — makes latency diagnosis possible from logs alone."""
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            log.info("llm %s: %s prompt + %s completion tokens", model,
+                     getattr(usage, "prompt_tokens", "?"),
+                     getattr(usage, "completion_tokens", "?"))
 
     @staticmethod
     def _normalize_tool_calls(message: Any) -> list[dict]:
