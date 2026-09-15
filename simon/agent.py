@@ -195,12 +195,20 @@ class Agent:
         escalated = False
         self.last_turn_exhausted = False
         t0 = time.monotonic()
+        fast_model = getattr(self.llm, "model_fast", None)
         for _ in range(MAX_ITERATIONS):
+            # Fast tier handles simple turns without tools: sending the full
+            # tool schemas (~18k tokens with MCP servers connected) would
+            # dominate its latency. Tool-needing turns route smart via the
+            # classifier, and mid-turn escalation restores full schemas.
+            turn_tools = schemas or None
+            if fast_model and model == fast_model:
+                turn_tools = None
             try:
                 if model is None:
-                    result = self.llm.chat(messages, tools=schemas or None)
+                    result = self.llm.chat(messages, tools=turn_tools)
                 else:
-                    result = self.llm.chat(messages, tools=schemas or None,
+                    result = self.llm.chat(messages, tools=turn_tools,
                                            model=model)
             except Exception:
                 # Local tier unreachable/failed (e.g. Ollama down): fall back

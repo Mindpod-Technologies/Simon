@@ -275,10 +275,16 @@ def register_mcp_tools(registry, settings) -> int:
     if manager is None:
         return 0
     count = 0
+    allowlist = getattr(settings, "simon_mcp_tool_allowlist", "") or ""
+    allowed = {p.strip().lower() for p in allowlist.split(",") if p.strip()}
     for server, tools in manager.tools.items():
         for t in tools:
             wrapper_name = _sanitize(
                 f"mcp_{server}_{t['name']}")[:_MAX_TOOL_NAME]
+            if allowed and not any(
+                    p in wrapper_name.lower() or p in t["name"].lower()
+                    for p in allowed):
+                continue
             description = (t["description"] or "MCP tool")
             if server:
                 description = f"[MCP:{server}] {description}"

@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     # system-prompt index are only registered when this is true.
     simon_skills_enabled: bool = True
     simon_mcp_config: str = ""  # default: mcp.json in the working directory
+    # Comma-separated substrings; when set, only MCP tools whose name
+    # contains one of them are exposed to the model. Every exposed tool
+    # schema costs prompt tokens on EVERY turn (89 tools ≈ 18k tokens), so
+    # curating this list is the single biggest latency lever.
+    simon_mcp_tool_allowlist: str = ""
     simon_mcp_call_timeout: int = 120
     simon_mcp_start_timeout: int = 30
 

@@ -141,3 +141,44 @@ def test_get_manager_disabled():
     class S:
         simon_mcp_enabled = False
     assert mcp_client.get_manager(S()) is None
+
+
+# --------------------------------------------------------------------- #
+# Tool allowlist (latency lever: every exposed schema costs prompt tokens)
+# --------------------------------------------------------------------- #
+
+class _FakeManager:
+    tools = {
+        "github": [
+            {"name": "list_issues", "description": "d",
+             "schema": {"type": "object", "properties": {}}},
+            {"name": "create_gist", "description": "d",
+             "schema": {"type": "object", "properties": {}}},
+            {"name": "get_pull_request", "description": "d",
+             "schema": {"type": "object", "properties": {}}},
+        ],
+    }
+
+
+def test_allowlist_filters_registered_tools(monkeypatch):
+    from simon.config import Settings
+    monkeypatch.setattr(mcp_client, "get_manager",
+                        lambda settings: _FakeManager())
+    registry = ToolRegistry()
+    n = mcp_client.register_mcp_tools(
+        registry, Settings(simon_mcp_tool_allowlist="issue,pull"))
+    registered = {s["function"]["name"] for s in registry.schemas()}
+    assert n == 2
+    assert "mcp_github_list_issues" in registered
+    assert "mcp_github_get_pull_request" in registered
+    assert "mcp_github_create_gist" not in registered
+
+
+def test_empty_allowlist_registers_everything(monkeypatch):
+    from simon.config import Settings
+    monkeypatch.setattr(mcp_client, "get_manager",
+                        lambda settings: _FakeManager())
+    registry = ToolRegistry()
+    n = mcp_client.register_mcp_tools(
+        registry, Settings(simon_mcp_tool_allowlist=""))
+    assert n == 3
