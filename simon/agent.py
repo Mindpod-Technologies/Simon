@@ -162,7 +162,13 @@ class Agent:
         low = user_text.lower()
         personal = re.search(r"\b(my|our|we|i)\b", low) and re.search(
             r"\b(what|when|where|who|which|how)\b", low)
-        if personal:
+        # File/tool-intent questions ("what files are on my desktop?") are
+        # NOT personal-trivia questions — tools answer them with ground
+        # truth, so the intercept must not deflect them.
+        file_intent = any(k in low for k in (
+            "file", "folder", "directory", "desktop", "document",
+            "download", "spreadsheet", "pdf", "screenshot"))
+        if personal and not file_intent:
             try:
                 fact_hits = memory.search_facts(user_text)
             except Exception:  # pragma: no cover
@@ -238,8 +244,45 @@ class Agent:
         escalated = False
         self.last_turn_exhausted = False
         t0 = time.monotonic()
+
+        # Deterministic explicit-tool execution: "use the list_files tool on
+        # /path" runs the tool directly and has the model summarise the real
+        # output. Cautious local models sometimes REFUSE permitted file ops
+        # even after nudges — when the owner asks explicitly, the system
+        # guarantees the action, the model only words the answer.
+        explicit = self._explicit_tool_call(user_text)
+        if explicit is not None and explicit[0] in self.registry:
+            tname, targs = explicit
+            logger.info("explicit tool request — running %s directly", tname)
+            try:
+                output = self.registry.call(tname, targs)
+                tools_used.append(tname)
+                ground_messages = messages + [
+                    {"role": "user", "content": (
+                        f"[System note: the user explicitly asked you to run "
+                        f"the {tname} tool. The system has executed it FOR "
+                        f"you with the exact arguments requested — this is "
+                        f"its real output. Answer the user's request "
+                        f"strictly from it; do not call more tools.\n\n"
+                        f"{output}]")},
+                ]
+                if model is None:
+                    result = self.llm.chat(ground_messages)
+                else:
+                    result = self.llm.chat(ground_messages, model=model)
+                reply = (result.get("content") or "").strip()
+                if self._looks_like_false_refusal(reply, user_text):
+                    # The model refused despite holding the real output —
+                    # the owner asked explicitly, so deliver the data raw.
+                    reply = (f"As requested, sir — the raw output of "
+                             f"{tname}:\n\n{output}")
+                regenerated = True
+            except Exception:
+                logger.exception("explicit tool execution failed")
+                reply = ""
+
         fast_model = getattr(self.llm, "model_fast", None)
-        for _ in range(MAX_ITERATIONS):
+        for _ in range(0 if reply else MAX_ITERATIONS):
             # Fast tier handles simple turns without tools: sending the full
             # tool schemas (~18k tokens with MCP servers connected) would
             # dominate its latency. Tool-needing turns route smart via the
@@ -336,9 +379,11 @@ class Agent:
         else:
             # Loop exhausted on local tiers: give the frontier model one clean
             # shot at a final answer (no tools, so it cannot loop) before
-            # apologising to the user.
+            # apologising to the user. Skipped when the explicit-tool path
+            # already answered (range(0) loop still triggers this else).
             frontier_model = getattr(self.llm, "model_frontier", "")
-            if (getattr(self.llm, "frontier_enabled", False)
+            if (not reply
+                    and getattr(self.llm, "frontier_enabled", False)
                     and model != frontier_model):
                 try:
                     result = self.llm.chat(messages, model=frontier_model)
@@ -631,6 +676,26 @@ class Agent:
             user_len=len(user_text),
         )
         return reply
+
+    _READ_ONLY_PATH_TOOLS = {"list_files", "read_file"}
+
+    @classmethod
+    def _explicit_tool_call(cls, user_text: str):
+        """Parse "use the <tool> tool on/with <path>" into (name, args).
+
+        Only read-only single-path tools are eligible — explicit phrasing
+        must never become a write vector the owner didn't spell out.
+        """
+        match = re.search(
+            r"use (?:the )?(\w+) tool\b(?:\s+(?:on|with|for)\s+(\S+))?",
+            user_text or "", re.IGNORECASE)
+        if not match:
+            return None
+        name = match.group(1)
+        target = (match.group(2) or "").strip().rstrip(".,;'\"")
+        if name in cls._READ_ONLY_PATH_TOOLS and target:
+            return name, {"path": target}
+        return None
 
     @staticmethod
     def _looks_like_false_refusal(reply: str, user_text: str) -> bool:

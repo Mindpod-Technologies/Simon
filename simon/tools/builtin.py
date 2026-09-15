@@ -150,6 +150,8 @@ def _allowed_roots(settings) -> list[Path]:
 
 def _resolve_in_workspace(settings, path: str) -> Path:
     roots = _allowed_roots(settings)
+    if path.startswith("~"):
+        path = str(Path(path).expanduser())
     target = (roots[0] / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
     if not any(target == root or root in target.parents for root in roots):
         raise PermissionError(f"path '{path}' escapes the allowed directories")

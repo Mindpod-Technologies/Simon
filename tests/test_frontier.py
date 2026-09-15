@@ -196,6 +196,9 @@ def test_named_tool_routes_to_smart_model(tmp_path, monkeypatch):
 
 
 class _FileRegistry:
+    def __contains__(self, name):
+        return name == "list_files"
+
     def schemas(self):
         return [{"type": "function", "function": {
             "name": "list_files",
@@ -236,9 +239,48 @@ def test_false_refusal_is_nudged_into_tool_call(tmp_path, monkeypatch):
     llm = RefusingFakeLLM()
     agent = Agent(Settings(), registry=_FileRegistry(),
                   session_id="refusal-test", llm=llm)
-    reply = agent.handle("use the list_files tool on ~/Desktop")
+    reply = agent.handle("what files are on my desktop, please?")
     assert "report.pdf" in reply
     assert llm.calls >= 2
+
+
+def test_explicit_tool_call_parser():
+    from simon.agent import Agent
+    assert Agent._explicit_tool_call(
+        "use the list_files tool on /Users/x/Desktop and tell me "
+        "what is there") == ("list_files", {"path": "/Users/x/Desktop"})
+    assert Agent._explicit_tool_call(
+        "please use the read_file tool with ~/notes.txt") == (
+        "read_file", {"path": "~/notes.txt"})
+    # write-capable tools are never auto-executed from phrasing alone
+    assert Agent._explicit_tool_call(
+        "use the write_file tool on /tmp/x") is None
+    assert Agent._explicit_tool_call("what is on my desktop?") is None
+
+
+def test_explicit_tool_request_executes_deterministically(tmp_path,
+                                                          monkeypatch):
+    """'use the X tool on Y' must run X directly — no model cooperation
+    required — and the reply must come from the real output."""
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+
+    class OneShotLLM(FrontierFakeLLM):
+        def chat(self, messages, tools=None, model=None):
+            self.seen_models.append(model)
+            # The grounding note must carry the real tool output.
+            grounded = any("report.pdf" in str(m.get("content", ""))
+                           for m in messages)
+            assert grounded, "model was not given the real tool output"
+            return {"content": "Your Desktop holds report.pdf, sir.",
+                    "tool_calls": []}
+
+    llm = OneShotLLM()
+    agent = Agent(Settings(), registry=_FileRegistry(),
+                  session_id="explicit-test", llm=llm)
+    reply = agent.handle("use the list_files tool on ~/Desktop please")
+    assert "report.pdf" in reply
+    assert len(llm.seen_models) == 1  # single grounded call, no loop
 
 
 def test_local_failure_escalates_to_frontier(tmp_path, monkeypatch):
