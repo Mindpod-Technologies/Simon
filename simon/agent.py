@@ -93,6 +93,17 @@ _FETCH_CLAIM_RE = re.compile(
     r"according to the (website|web ?page|page|site|link|url))\b",
     re.IGNORECASE)
 
+# Matches presentation claims for visual/file artifacts that no tool
+# produced: "Here is the pie chart showing…", "here's your graph",
+# "the chart below". Fifth variant of the narration disease — the model
+# claims to PRESENT a chart/document it never created.
+_PRESENTS_ARTIFACT_RE = re.compile(
+    r"\b(here(?: is|'s) (?:the |your |a |this )?(?:newly created )?"
+    r"(?:pie |bar |line |scatter )?(?:chart|graph|plot|diagram|image|"
+    r"spreadsheet|document|report)\b|"
+    r"the (?:chart|graph|plot|diagram) (?:above|below))\b",
+    re.IGNORECASE)
+
 # Cap on claimed-action re-nudges. Each nudge is a full smart-model
 # generation (~30-60 s on local hardware), so the worst-case added latency
 # stays bounded; after this many failures the honesty fallback replies.
@@ -241,9 +252,20 @@ class Agent:
         tool_errors = 0
         tools_used: list[str] = []
         failed_calls: dict[str, int] = {}
+        artifact_markers: list[str] = []
         escalated = False
         self.last_turn_exhausted = False
         t0 = time.monotonic()
+
+        def _collect_artifact_markers(output) -> None:
+            """Remember [artifact:path] markers from tool output so they
+            always reach the final reply, even when the model paraphrases
+            or the tool ran inside a nudge loop (whose messages live in a
+            throwaway copy)."""
+            for marker in re.findall(r"\[artifact:([^\]\s]+)\]",
+                                     str(output or "")):
+                if marker not in artifact_markers:
+                    artifact_markers.append(marker)
 
         # Deterministic explicit-tool execution: "use the list_files tool on
         # /path" runs the tool directly and has the model summarise the real
@@ -256,6 +278,7 @@ class Agent:
             logger.info("explicit tool request — running %s directly", tname)
             try:
                 output = self.registry.call(tname, targs)
+                _collect_artifact_markers(output)
                 tools_used.append(tname)
                 ground_messages = messages + [
                     {"role": "user", "content": (
@@ -355,6 +378,7 @@ class Agent:
                     continue
                 try:
                     output = self.registry.call(call["name"], call["arguments"])
+                    _collect_artifact_markers(output)
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.exception("Tool %s raised unexpectedly", call["name"])
                     output = f"Error: tool {call['name']} failed: {exc}"
@@ -416,6 +440,7 @@ class Agent:
                 logger.info("URL in user message but no fetch — grounding "
                             "deterministically via fetch_url(%s)", url)
                 fetched = self.registry.call("fetch_url", {"url": url})
+                _collect_artifact_markers(fetched)
                 tools_used.append("fetch_url")
                 regenerated = True
                 ground_messages = messages + [
@@ -451,6 +476,7 @@ class Agent:
                 logger.warning("pseudo-tool-call in reply text — executing "
                                "%s for real", pname)
                 poutput = self.registry.call(pname, pargs)
+                _collect_artifact_markers(poutput)
                 tools_used.append(pname)
                 regenerated = True
                 fix_messages = messages + [
@@ -550,6 +576,7 @@ class Agent:
                         try:
                             output = self.registry.call(call["name"],
                                                         call["arguments"])
+                            _collect_artifact_markers(output)
                         except Exception as exc:  # pragma: no cover
                             output = f"Error: tool {call['name']} failed: {exc}"
                         nudge_messages.append({
@@ -619,6 +646,7 @@ class Agent:
                         try:
                             output = self.registry.call(c["name"],
                                                         c["arguments"])
+                            _collect_artifact_markers(output)
                         except Exception:  # pragma: no cover - defensive
                             output = f"Error: tool {c['name']} failed"
                         refusal_messages.append({
@@ -666,15 +694,7 @@ class Agent:
         # marker — append any that went missing so created files ALWAYS
         # surface in the reply.
         try:
-            produced: list[str] = []
-            for m in messages:
-                if m.get("role") != "tool":
-                    continue
-                for marker in re.findall(r"\[artifact:([^\]\s]+)\]",
-                                         str(m.get("content") or "")):
-                    if marker not in produced:
-                        produced.append(marker)
-            missing = [p for p in produced if p not in reply]
+            missing = [p for p in artifact_markers if p not in reply]
             if missing:
                 reply = reply.rstrip() + "\n" + "\n".join(
                     f"[artifact:{p}]" for p in missing)
@@ -790,6 +810,7 @@ class Agent:
                 or _ADJECTIVE_CLAIM_RE.search(reply) is not None
                 or _PRESENT_CLAIM_RE.search(reply) is not None
                 or _FETCH_CLAIM_RE.search(reply) is not None
+                or _PRESENTS_ARTIFACT_RE.search(reply) is not None
                 or self._mentions_tool(reply))
 
     def _extract_pseudo_call(self, text: str):
