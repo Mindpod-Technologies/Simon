@@ -220,3 +220,32 @@ def test_setup_pull_validates_model_name(client, monkeypatch, tmp_path):
     r = client.post("/api/setup/pull_model",
                     json={"model": "bad name; rm -rf /"})
     assert r.status_code == 400
+
+
+# ---------------------------------------------------------------- monitor app
+
+def test_monitor_gated_like_main_app(monkeypatch, tmp_path):
+    from simon import monitor_app
+    stored = auth.hash_password("owner-pass-123")
+    monkeypatch.setattr(
+        settings_api, "read_env",
+        lambda path=None: ({"SIMON_OWNER_PASSWORD_HASH": stored}, []))
+    c = TestClient(monitor_app.create_app())
+    r = c.get("/", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].endswith("/login")
+    assert c.get("/api/stats").status_code == 401
+    # Valid session cookie (shared with the main app) unlocks it
+    c.cookies.set(auth.COOKIE_NAME, auth.make_session(stored))
+    assert c.get("/").status_code == 200
+    assert c.get("/api/stats").status_code == 200
+
+
+def test_monitor_first_run_points_at_setup(monkeypatch, tmp_path):
+    from simon import monitor_app
+    monkeypatch.setattr(settings_api, "read_env",
+                        lambda path=None: ({}, []))
+    c = TestClient(monitor_app.create_app())
+    r = c.get("/", follow_redirects=False)
+    assert r.status_code == 303
+    assert r.headers["location"].endswith("/setup")

@@ -61,11 +61,41 @@ cp .env.example .env        # then edit: set LLM_API_KEY
 python run.py server        # web UI on http://localhost:8788
 ```
 
+**First run = onboarding wizard.** Open http://localhost:8788 and Simon walks
+you through four steps before anything else is reachable:
+
+1. **Owner password** — locks the web UI, the HTTP API, and the monitoring
+   portal (port 8789). Only a PBKDF2 hash is stored; sessions are signed
+   cookies that survive restarts and die when the password changes.
+2. **Brain** — auto-detects Ollama and its installed models, pulls a model
+   for you if needed, and takes an optional frontier API key (e.g. Kimi K3)
+   for the cloud top tier.
+3. **Channels** — Telegram / Slack / Teams tokens and allowlisted user IDs
+   (skippable; channels authenticate through their own platforms, not the
+   web password).
+4. **Mailbox** — optional Microsoft 365 Graph credentials so Simon gets his
+   own inbox.
+
+Everything the wizard writes is editable later in **Settings** (web UI) or
+`.env` directly. Until the password is set, every page funnels to `/setup`
+and every API call returns `401 {"setup_required": true}`.
+
 Other modes: `python run.py telegram`, `python run.py slack`,
 `python run.py teams`, `python run.py voice` (Mac only),
 `python run.py all` (web + every configured chat interface + scheduler — the production mode).
 
 Tests: `python -m pytest tests`
+
+### Security defaults (read before exposing Simon)
+
+- `SIMON_ALLOW_SHELL` defaults to **off** — enable it only on single-owner
+  installs; it lets the model run shell commands.
+- File tools are confined to `SIMON_WORKSPACE_DIR`; shell access, raw `.env`
+  editing, and the settings restart endpoint are owner-tier powers.
+- Chat channels ignore messages from non-allowlisted user IDs.
+- The web UI binds all interfaces by default — put Simon behind Tailscale
+  (or another private network) rather than punching a public hole, and keep
+  the owner password set.
 
 ## Configuration
 

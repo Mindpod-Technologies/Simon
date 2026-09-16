@@ -119,6 +119,33 @@ refresh(); setInterval(refresh, 5000);
 def create_app() -> FastAPI:
     app = FastAPI(title="Simon Monitor")
 
+    # Same owner gate as the main UI: the session cookie is keyed on the
+    # password hash and cookies are port-independent, so one login covers
+    # both apps.
+    from fastapi import Request
+    from fastapi.responses import JSONResponse, RedirectResponse
+
+    from simon import auth as auth_mod
+    from simon import settings_api
+
+    MAIN = "http://localhost:8788"
+
+    @app.middleware("http")
+    async def auth_gate(request: Request, call_next):
+        try:
+            values, _ = settings_api.read_env()
+            stored = values.get("SIMON_OWNER_PASSWORD_HASH", "")
+        except Exception:  # noqa: BLE001
+            stored = ""
+        token = request.cookies.get(auth_mod.COOKIE_NAME, "")
+        if auth_mod.check_session(token, stored):
+            return await call_next(request)
+        if request.url.path.startswith("/api/"):
+            return JSONResponse({"error": "authentication required"},
+                                status_code=401)
+        return RedirectResponse(
+            MAIN + ("/setup" if not stored else "/login"), status_code=303)
+
     @app.get("/", response_class=HTMLResponse)
     async def index() -> str:
         # Inject the configured smart model so the JS can label rows by
