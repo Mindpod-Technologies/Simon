@@ -148,7 +148,10 @@ class LLM:
         self._extra: dict[str, Any] = {}
         if "11434" in (settings.llm_base_url or ""):
             self._extra["extra_body"] = {"reasoning_effort": "none",
-                                         "temperature": 0.4}
+                                         "temperature": 0.4,
+                                         # Keep the model resident: reloads
+                                         # cost 5-15 s on a single-GPU box.
+                                         "keep_alive": "24h"}
 
         # Model router: fast model for simple turns, llm_model for the rest.
         self.model_fast: str = settings.llm_model_fast or self.model

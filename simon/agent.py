@@ -168,6 +168,21 @@ class Agent:
         messages = self._build_messages(user_text)
         schemas = self.registry.schemas() if self.registry else None
 
+        # Capability questions ("what can you do?") get an instant,
+        # deterministic answer built from the live registry — local models
+        # hallucinate these, and the truth is knowable for free.
+        from . import capabilities
+        if capabilities.is_capability_question(user_text):
+            reply = capabilities.capabilities_answer(schemas)
+            memory.add_message(self.session_id, "assistant", reply)
+            obs.record_event(
+                "turn", interface=self.interface,
+                session_id=self.session_id, model="(none)",
+                route_reason="capabilities overview", latency_ms=0,
+                tools=[], tool_errors=0, escalated=False,
+                reply_len=len(reply), user_len=len(user_text))
+            return reply
+
         # Deterministic honesty intercept: a personal question whose topic has
         # NEVER appeared in facts or conversation history gets a guaranteed
         # honest answer. Abliterated local models cannot be trusted not to

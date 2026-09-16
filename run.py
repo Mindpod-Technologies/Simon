@@ -8,6 +8,40 @@ import asyncio
 import sys
 
 
+def warm_models(settings) -> None:
+    """Pre-load the smart + fast models into Ollama in the background.
+
+    Cold loads cost 5-15 s on a single-GPU machine and hit whoever happens
+    to ask first after a restart or an eviction. A one-token chat request
+    with keep_alive pins each model; runs in a daemon thread so startup
+    is never delayed.
+    """
+    import threading
+
+    def _warm() -> None:
+        try:
+            from openai import OpenAI
+            client = OpenAI(base_url=settings.llm_base_url,
+                            api_key=settings.llm_api_key or "simon-no-key")
+            models = {settings.llm_model,
+                      getattr(settings, "llm_model_fast", "") or ""} - {""}
+            for model in models:
+                try:
+                    client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": "ping"}],
+                        max_tokens=1,
+                        extra_body={"keep_alive": "24h",
+                                    "reasoning_effort": "none"})
+                except Exception:  # noqa: BLE001 - warm-up is best-effort
+                    pass
+        except Exception:  # noqa: BLE001
+            pass
+
+    threading.Thread(target=_warm, daemon=True, name="simon-model-warmup"
+                     ).start()
+
+
 def cmd_server() -> None:
     """Run the FastAPI web interface on 0.0.0.0:8788."""
     import uvicorn
@@ -16,6 +50,8 @@ def cmd_server() -> None:
     from simon.interfaces.web import create_app
 
     settings = get_settings()
+    if "11434" in (settings.llm_base_url or ""):
+        warm_models(settings)
     uvicorn.run(create_app(settings), host="0.0.0.0", port=8788)
 
 
@@ -66,7 +102,8 @@ async def _run_all() -> None:
     from simon.tools import build_default_registry
 
     settings = get_settings()
-
+    if "11434" in (settings.llm_base_url or ""):
+        warm_models(settings)
     # Scheduler delivers proactive messages through Telegram when configured,
     # otherwise it just logs.
     telegram_notify = None

@@ -9,6 +9,15 @@
       }
     },
     {
+      "name": "capabilities-tour-is-instant-and-accurate",
+      "say": "Simon, tell me all of what you can do",
+      "expect": {
+        "reply_contains_any": ["Remember", "remember"],
+        "reply_not_contains": ["cannot emit a tool call", "specific instruction"],
+        "reply_min_len": 120
+      }
+    },
+    {
       "name": "explicit-override-uses-smart-brain",
       "say": "Think harder: in one sentence, is a monolith or microservices better for a two-person startup?",
       "expect": {
