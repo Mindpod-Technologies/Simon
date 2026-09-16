@@ -41,6 +41,10 @@ class FactRequest(BaseModel):
     value: str
 
 
+class LoginRequest(BaseModel):
+    password: str
+
+
 def _chunk_words(text: str, size: int = 4):
     """Yield groups of words for a pleasant streaming effect."""
     words = text.split(" ")
@@ -51,6 +55,65 @@ def _chunk_words(text: str, size: int = 4):
 def create_app(settings) -> FastAPI:
     app = FastAPI(title="Simon")
     agents: dict[str, Agent] = {}
+
+    # ---- owner auth gate ----
+    from simon import auth as auth_mod
+
+    def live_password_hash() -> str:
+        """Read the hash live from .env so completing /setup takes effect
+        without a restart (the cached Settings would lag until then)."""
+        try:
+            from simon import settings_api
+            values, _ = settings_api.read_env()
+            return values.get("SIMON_OWNER_PASSWORD_HASH", "")
+        except Exception:  # noqa: BLE001
+            return auth_mod.password_hash(settings)
+
+    @app.middleware("http")
+    async def auth_gate(request: Request, call_next):
+        path = request.url.path
+        stored = live_password_hash()
+        first_run = not stored
+        if auth_mod.is_public_path(path, first_run=first_run):
+            return await call_next(request)
+        token = request.cookies.get(auth_mod.COOKIE_NAME, "")
+        if auth_mod.check_session(token, stored):
+            return await call_next(request)
+        if path.startswith("/api/"):
+            payload = {"error": "authentication required"}
+            if first_run:
+                payload["setup_required"] = True
+            return JSONResponse(payload, status_code=401)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse("/setup" if first_run else "/login",
+                                status_code=303)
+
+    @app.get("/login")
+    async def login_page():
+        return FileResponse(STATIC_DIR / "login.html")
+
+    @app.post("/api/login")
+    async def login(req: LoginRequest):
+        from fastapi.responses import Response
+        if auth_mod.login_throttled():
+            return JSONResponse(
+                {"error": "too many attempts — wait a minute"}, status_code=429)
+        stored = live_password_hash()
+        if not stored or not auth_mod.verify_password(req.password, stored):
+            auth_mod.record_login(False)
+            return JSONResponse({"error": "wrong password"}, status_code=401)
+        auth_mod.record_login(True)
+        response = JSONResponse({"ok": True})
+        response.set_cookie(
+            auth_mod.COOKIE_NAME, auth_mod.make_session(stored),
+            max_age=7 * 24 * 3600, httponly=True, samesite="lax")
+        return response
+
+    @app.post("/api/logout")
+    async def logout():
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(auth_mod.COOKIE_NAME)
+        return response
 
     def agent_for(session_id: str) -> Agent:
         if session_id not in agents:
@@ -285,4 +348,9 @@ def create_app(settings) -> FastAPI:
         settings_api.register(app, settings)
     except Exception:  # noqa: BLE001
         log.exception("settings API unavailable")
+    try:
+        from simon import setup_api
+        setup_api.register(app, settings)
+    except Exception:  # noqa: BLE001
+        log.exception("setup API unavailable")
     return app

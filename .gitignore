@@ -16,3 +16,4 @@ site/dist/
 # Desktop app build artifacts
 desktop/node_modules/
 desktop/dist/
+.env.bak

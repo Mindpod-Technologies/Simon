@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMON — First-run setup</title>
+<style>
+  :root {
+    --bg: #06090c; --panel: #0b1116; --panel-border: #16232b;
+    --text: #c9d4d8; --text-dim: #5d707a; --accent: #3fc6c9;
+    --accent-dim: rgba(63,198,201,0.12); --accent-glow: rgba(63,198,201,0.35);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    font-size: 14px; min-height: 100vh;
+    display: flex; justify-content: center; padding: 40px 16px 60px;
+  }
+  .wizard { width: min(680px, 94vw); }
+  .head { text-align: center; margin-bottom: 30px; }
+  h1 {
+    font-size: 18px; font-weight: 600; letter-spacing: 0.5em;
+    color: var(--accent); text-shadow: 0 0 12px var(--accent-glow);
+  }
+  .sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.25em; margin-top: 6px; }
+  section {
+    background: var(--panel); border: 1px solid var(--panel-border);
+    border-radius: 12px; padding: 22px 24px; margin-bottom: 18px;
+  }
+  section.done { border-color: rgba(95,184,106,0.4); }
+  h2 {
+    font-size: 12px; letter-spacing: 0.3em; color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .note { font-size: 11px; color: var(--text-dim); line-height: 1.6; margin-bottom: 14px; }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; }
+  label { font-size: 11px; color: var(--text-dim); display: block; margin-bottom: 4px; letter-spacing: 0.08em; }
+  .field { flex: 1; }
+  input, select {
+    width: 100%; background: var(--bg); border: 1px solid var(--panel-border);
+    border-radius: 8px; color: var(--text); font: inherit; font-size: 13px;
+    padding: 9px 12px; outline: none;
+  }
+  input:focus, select:focus { border-color: rgba(63,198,201,0.45); }
+  button {
+    background: var(--panel); border: 1px solid rgba(63,198,201,0.4);
+    border-radius: 8px; color: var(--accent); font: inherit; font-size: 12px;
+    letter-spacing: 0.15em; padding: 10px 20px; cursor: pointer; transition: all 0.2s;
+  }
+  button:hover { box-shadow: 0 0 14px var(--accent-dim); }
+  button:disabled { opacity: 0.4; }
+  .ghost { border-color: var(--panel-border); color: var(--text-dim); }
+  .ok { color: #5fb86a; font-size: 12px; }
+  .err { color: #d66; font-size: 12px; }
+  .status-line { font-size: 11px; margin-top: 8px; min-height: 14px; }
+  .finish { text-align: center; margin-top: 24px; }
+  .finish button { font-size: 14px; padding: 14px 40px; }
+  .pill {
+    display: inline-block; font-size: 10px; letter-spacing: 0.15em;
+    padding: 2px 10px; border-radius: 4px; margin-left: 8px;
+    border: 1px solid var(--panel-border); color: var(--text-dim);
+  }
+  .pill.on { color: #5fb86a; border-color: rgba(95,184,106,0.4); }
+  .pill.off { color: #c9a43f; border-color: rgba(201,164,63,0.4); }
+  code { color: var(--accent); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wizard">
+  <div class="head">
+    <h1>SIMON</h1>
+    <div class="sub">FIRST-RUN SETUP — FOUR STEPS TO A BUTLER</div>
+  </div>
+
+  <section id="s-password">
+    <h2>1 · OWNER PASSWORD</h2>
+    <p class="note">Locks the web UI and API. Chat channels (Slack, Telegram, Teams) authenticate through their own platforms and don't use this.</p>
+    <div class="row">
+      <div class="field"><label>Password (8+ characters)</label><input id="pw1" type="password"></div>
+      <div class="field"><label>Confirm</label><input id="pw2" type="password"></div>
+    </div>
+    <div class="status-line" id="pw-msg"></div>
+  </section>
+
+  <section id="s-brain">
+    <h2>2 · BRAIN <span id="ollama-pill" class="pill">CHECKING…</span></h2>
+    <p class="note">Simon runs locally via Ollama. Smart model handles complex work; fast model handles quick turns. Add a frontier API key (e.g. Kimi K3) for a cloud top tier — optional but recommended.</p>
+    <div class="row">
+      <div class="field"><label>Smart model</label><input id="llm-model" placeholder="gpt-oss:20b"></div>
+      <div class="field"><label>Fast model</label><input id="llm-fast" placeholder="qwen3:8b"></div>
+    </div>
+    <div class="row" id="pull-row" style="display:none">
+      <div class="field"><label>Pull a model (takes minutes)</label><input id="pull-name" placeholder="qwen3:8b"></div>
+      <div class="field" style="flex:0;align-self:end"><button class="ghost" id="pull-btn">PULL</button></div>
+    </div>
+    <div class="status-line" id="pull-msg"></div>
+    <div class="row">
+      <div class="field"><label>Frontier endpoint</label><input id="frontier-url" value="https://api.moonshot.ai/v1"></div>
+      <div class="field"><label>Frontier model</label><input id="frontier-model" value="kimi-k3"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Frontier API key (optional)</label><input id="frontier-key" type="password" placeholder="sk-…"></div>
+    </div>
+  </section>
+
+  <section id="s-channels">
+    <h2>3 · CHANNELS <span class="pill">OPTIONAL</span></h2>
+    <p class="note">Skip anything you don't use yet — all of this is editable later in Settings.</p>
+    <div class="row">
+      <div class="field"><label>Telegram bot token</label><input id="tg-token" type="password" placeholder="123456:ABC…"></div>
+      <div class="field"><label>Telegram allowed user IDs</label><input id="tg-ids" placeholder="comma-separated"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Slack bot token</label><input id="sl-bot" type="password" placeholder="xoxb-…"></div>
+      <div class="field"><label>Slack app token</label><input id="sl-app" type="password" placeholder="xapp-…"></div>
+    </div>
+  </section>
+
+  <section id="s-mail">
+    <h2>4 · MAILBOX <span class="pill">OPTIONAL</span></h2>
+    <p class="note">Microsoft 365 via Graph (application permissions Mail.Read + Mail.Send). Gives Simon his own inbox to read and send from.</p>
+    <div class="row">
+      <div class="field"><label>Tenant ID</label><input id="g-tenant" type="password"></div>
+      <div class="field"><label>Client ID</label><input id="g-client" type="password"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Client secret</label><input id="g-secret" type="password"></div>
+      <div class="field"><label>Simon's mailbox</label><input id="mailbox" placeholder="simon@yourcompany.com"></div>
+    </div>
+  </section>
+
+  <div class="finish">
+    <div class="status-line" id="finish-msg"></div>
+    <button id="finish-btn">COMPLETE SETUP</button>
+    <p class="note" style="margin-top:12px">Simon restarts himself to apply — back in about 10 seconds.</p>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let detected = [];
+
+async function loadStatus() {
+  const s = await fetch('/api/setup/status').then(r => r.json()).catch(() => null);
+  if (!s) return;
+  detected = s.ollama_models || [];
+  const pill = $('ollama-pill');
+  if (s.ollama_running) {
+    pill.textContent = 'OLLAMA DETECTED'; pill.className = 'pill on';
+    $('pull-row').style.display = 'flex';
+  } else {
+    pill.textContent = 'OLLAMA NOT FOUND — install from ollama.com'; pill.className = 'pill off';
+  }
+  if (detected.length) {
+    if (!$('llm-model').value && detected.some(m => m.startsWith('gpt-oss'))) $('llm-model').value = 'gpt-oss:20b';
+    if (!$('llm-fast').value && detected.some(m => m.startsWith('qwen3'))) $('llm-fast').value = 'qwen3:8b';
+  }
+  const cur = s.current || {};
+  if (cur.SIMON_MAILBOX && !cur.SIMON_MAILBOX.includes('•')) $('mailbox').value = cur.SIMON_MAILBOX;
+}
+
+$('pull-btn').onclick = async () => {
+  const name = $('pull-name').value.trim();
+  if (!name) return;
+  $('pull-btn').disabled = true;
+  $('pull-msg').className = 'status-line note';
+  $('pull-msg').textContent = 'pulling ' + name + '…';
+  await fetch('/api/setup/pull_model', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({model: name})});
+  const timer = setInterval(async () => {
+    const st = await fetch('/api/setup/pull_status').then(r => r.json());
+    if (!st.running) {
+      clearInterval(timer);
+      $('pull-btn').disabled = false;
+      $('pull-msg').className = 'status-line ' + (st.ok ? 'ok' : 'err');
+      $('pull-msg').textContent = st.ok ? name + ' ready.' : 'pull failed: ' + (st.log || '').slice(-120);
+      if (st.ok) loadStatus();
+    }
+  }, 3000);
+};
+
+$('finish-btn').onclick = async () => {
+  const msg = $('finish-msg');
+  const pw1 = $('pw1').value, pw2 = $('pw2').value;
+  if (!pw1 || pw1.length < 8) { msg.className='status-line err'; msg.textContent='choose a password of 8+ characters'; return; }
+  if (pw1 !== pw2) { msg.className='status-line err'; msg.textContent='passwords do not match'; return; }
+  const updates = {};
+  const put = (key, val) => { if (val && val.trim()) updates[key] = val.trim(); };
+  put('LLM_MODEL', $('llm-model').value);
+  put('LLM_MODEL_FAST', $('llm-fast').value);
+  if (updates.LLM_MODEL_FAST) updates.LLM_ROUTER_ENABLED = 'true';
+  put('LLM_BASE_URL', detected.length || !$('frontier-key').value ? 'http://localhost:11434/v1' : '');
+  put('LLM_FRONTIER_BASE_URL', $('frontier-url').value);
+  put('LLM_FRONTIER_MODEL', $('frontier-model').value);
+  put('LLM_FRONTIER_API_KEY', $('frontier-key').value);
+  put('TELEGRAM_BOT_TOKEN', $('tg-token').value);
+  put('TELEGRAM_ALLOWED_USER_IDS', $('tg-ids').value);
+  put('SLACK_BOT_TOKEN', $('sl-bot').value);
+  put('SLACK_APP_TOKEN', $('sl-app').value);
+  put('GRAPH_TENANT_ID', $('g-tenant').value);
+  put('GRAPH_CLIENT_ID', $('g-client').value);
+  put('GRAPH_CLIENT_SECRET', $('g-secret').value);
+  put('SIMON_MAILBOX', $('mailbox').value);
+
+  $('finish-btn').disabled = true;
+  const res = await fetch('/api/setup/save', {method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw1, updates})});
+  const data = await res.json();
+  if (!res.ok) {
+    msg.className='status-line err'; msg.textContent = data.error || 'save failed';
+    $('finish-btn').disabled = false; return;
+  }
+  msg.className='status-line ok';
+  msg.textContent = 'setup saved — restarting Simon…';
+  await fetch('/api/settings/restart', {method: 'POST'}).catch(() => {});
+  setTimeout(() => { location.href = '/login'; }, 9000);
+};
+
+loadStatus();
+</script>
+</body>
+</html>

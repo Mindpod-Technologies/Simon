@@ -141,6 +141,10 @@ class Settings(BaseSettings):
     # (e.g. "owner" to unify the browser with the owner's Slack DM).
     simon_web_default_session: str = ""
 
+    # Web UI owner authentication (see simon/auth.py). Empty = first-run:
+    # the UI funnels to the /setup wizard until a password is chosen.
+    simon_owner_password_hash: str = ""
+
     def canonical_session(self, interface: str, raw_id: str) -> str:
         """Map an interface-specific user/session ID to a canonical session."""
         key = f"{interface}:{raw_id}"

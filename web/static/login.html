@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMON — Sign in</title>
+<style>
+  :root {
+    --bg: #06090c; --panel: #0b1116; --panel-border: #16232b;
+    --text: #c9d4d8; --text-dim: #5d707a; --accent: #3fc6c9;
+    --accent-dim: rgba(63,198,201,0.12); --accent-glow: rgba(63,198,201,0.35);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .card {
+    width: min(400px, 90vw);
+    background: var(--panel);
+    border: 1px solid rgba(63,198,201,0.25);
+    border-radius: 14px;
+    padding: 36px 32px;
+    box-shadow: 0 0 50px rgba(63,198,201,0.08);
+    text-align: center;
+  }
+  h1 {
+    font-size: 17px; font-weight: 600; letter-spacing: 0.5em;
+    color: var(--accent); text-shadow: 0 0 12px var(--accent-glow);
+    margin-bottom: 8px;
+  }
+  .sub { font-size: 11px; color: var(--text-dim); letter-spacing: 0.2em; margin-bottom: 28px; }
+  input {
+    width: 100%; background: var(--bg); border: 1px solid var(--panel-border);
+    border-radius: 8px; color: var(--text); font: inherit; padding: 12px 14px;
+    outline: none; margin-bottom: 14px; text-align: center;
+  }
+  input:focus { border-color: rgba(63,198,201,0.45); box-shadow: 0 0 12px var(--accent-dim); }
+  button {
+    width: 100%; background: var(--panel); border: 1px solid rgba(63,198,201,0.4);
+    border-radius: 8px; color: var(--accent); font: inherit; letter-spacing: 0.2em;
+    padding: 12px; cursor: pointer; transition: all 0.2s;
+  }
+  button:hover { box-shadow: 0 0 16px var(--accent-dim); }
+  button:disabled { opacity: 0.4; }
+  .err { color: #d66; font-size: 12px; margin-top: 12px; min-height: 16px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>SIMON</h1>
+    <div class="sub">AT YOUR SERVICE</div>
+    <input id="pw" type="password" placeholder="Owner password" autofocus>
+    <button id="go">SIGN IN</button>
+    <div class="err" id="err"></div>
+  </div>
+<script>
+const pw = document.getElementById('pw');
+const go = document.getElementById('go');
+const err = document.getElementById('err');
+
+async function login() {
+  err.textContent = '';
+  go.disabled = true;
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw.value})
+    });
+    if (res.ok) { location.href = '/'; return; }
+    const data = await res.json();
+    err.textContent = data.error || 'sign-in failed';
+  } catch (e) {
+    err.textContent = 'connection error';
+  }
+  go.disabled = false;
+  pw.focus();
+}
+go.addEventListener('click', login);
+pw.addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+</script>
+</body>
+</html>

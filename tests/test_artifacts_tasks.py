@@ -127,6 +127,14 @@ def client(tmp_path, monkeypatch):
                         str(tmp_path / "simon.db"))
     memory.init_db()
 
+    # Auth gate: pretend the owner password is set and hold a valid session
+    from simon import auth, settings_api
+    stored = auth.hash_password("test-owner-pass")
+    real_read = settings_api.read_env
+    monkeypatch.setattr(
+        settings_api, "read_env",
+        lambda path=None: ({"SIMON_OWNER_PASSWORD_HASH": stored}, []))
+
     class S(FakeSettings):
         simon_web_default_session = ""
         simon_allow_shell = False
@@ -136,7 +144,9 @@ def client(tmp_path, monkeypatch):
 
     s = S(tmp_path / "workspace")
     app = create_app(s)
-    return TestClient(app), s
+    c = TestClient(app)
+    c.cookies.set(auth.COOKIE_NAME, auth.make_session(stored))
+    return c, s
 
 
 def test_facts_endpoints(client):
