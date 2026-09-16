@@ -2,6 +2,13 @@ import { useState } from 'react'
 
 const TEAL = '#4fd1c5'
 
+// Live product links.
+const REPO_URL = 'https://github.com/Mindpod-Technologies/Simon'
+const RELEASE_URL = `${REPO_URL}/releases/tag/v1.5.0`
+const DOWNLOAD_URL = `${REPO_URL}/releases/download/v1.5.0/Simon.Work-1.5.0-arm64.dmg`
+const ISSUES_URL = `${REPO_URL}/issues`
+const SALES_EMAIL = 'sales@mindpodtech.com'
+
 // Waitlist endpoint: create a free form at formspree.io (or any form
 // backend) and paste its URL here, e.g. https://formspree.io/f/abcdwxyz
 // Empty = the form falls back to opening the visitor's email client.
@@ -47,6 +54,7 @@ const TIERS = [
     price: 'Free',
     cadence: 'forever',
     cta: 'Download',
+    href: DOWNLOAD_URL,
     featured: false,
     items: ['Full source, personal use', 'All 9 skills + all interfaces', 'Community support via issues', 'No license key required'],
   },
@@ -56,6 +64,7 @@ const TIERS = [
     cadence: '/month per seat',
     alt: 'or $149 lifetime',
     cta: 'Buy Pro',
+    href: `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Pro&body=I%27d%20like%20a%20Pro%20license%20key.`,
     featured: true,
     items: ['Commercial use, one operator', '12 months of updates', 'Email support', 'Private release downloads'],
   },
@@ -64,6 +73,7 @@ const TIERS = [
     price: '$49',
     cadence: '/month per seat',
     cta: 'Talk to us',
+    href: `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Business`,
     featured: false,
     items: ['Seat volume discounts', 'White-label rights', 'Priority support + onboarding call', 'Roadmap influence, invoice/PO flow'],
   },
@@ -110,7 +120,7 @@ function Nav() {
           <a href="#pricing" className="hover:text-[#c9d6e3] transition-colors">Pricing</a>
           <a href="#faq" className="hover:text-[#c9d6e3] transition-colors">FAQ</a>
         </div>
-        <a href="#pricing" className="text-sm font-medium px-4 py-1.5 rounded-md bg-[#4fd1c5] text-[#0a0e14] hover:bg-[#63e0d0] transition-colors">Get Simon</a>
+        <a href={REPO_URL} className="text-sm font-medium px-4 py-1.5 rounded-md bg-[#4fd1c5] text-[#0a0e14] hover:bg-[#63e0d0] transition-colors">Get Simon</a>
       </div>
     </nav>
   )
@@ -134,7 +144,7 @@ function Hero() {
           takes real actions with tools, and never sends your data to anyone's cloud.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
-          <a href="#pricing" className="px-7 py-3 rounded-lg bg-[#4fd1c5] text-[#0a0e14] font-medium hover:bg-[#63e0d0] transition-colors">Start free</a>
+          <a href={DOWNLOAD_URL} className="px-7 py-3 rounded-lg bg-[#4fd1c5] text-[#0a0e14] font-medium hover:bg-[#63e0d0] transition-colors">Start free</a>
           <a href="#how" className="px-7 py-3 rounded-lg border border-[#1e2a38] text-[#c9d6e3] hover:border-[#4fd1c5]/50 transition-colors">See how it works</a>
         </div>
         <div className="mt-14 max-w-xl mx-auto rounded-lg border border-[#1e2a38] bg-[#0d131c] text-left font-mono text-sm">
@@ -144,8 +154,8 @@ function Hero() {
             <span className="w-2.5 h-2.5 rounded-full bg-[#1e2a38]" />
           </div>
           <div className="px-4 py-3.5 text-[#7d93a8]">
-            <span className="text-[#4fd1c5]">$</span> git clone simon && ./deploy/install_mac.sh<br />
-            <span className="text-[#3d5468]"># one command: models, services, web UI — done</span>
+            <span className="text-[#4fd1c5]">$</span> git clone https://github.com/Mindpod-Technologies/Simon.git && ./Simon/deploy/install_mac.sh<br />
+            <span className="text-[#3d5468]"># or just download the app — one click: models, services, web UI</span>
           </div>
         </div>
       </div>
@@ -249,7 +259,7 @@ function Pricing() {
                 <li key={i} className="flex gap-2.5"><span className="text-[#4fd1c5]">✓</span>{i}</li>
               ))}
             </ul>
-            <a href="#" className={`mt-7 text-center py-2.5 rounded-lg text-sm font-medium transition-colors ${t.featured ? 'bg-[#4fd1c5] text-[#0a0e14] hover:bg-[#63e0d0]' : 'border border-[#1e2a38] text-[#c9d6e3] hover:border-[#4fd1c5]/50'}`}>{t.cta}</a>
+            <a href={t.href} className={`mt-7 text-center py-2.5 rounded-lg text-sm font-medium transition-colors ${t.featured ? 'bg-[#4fd1c5] text-[#0a0e14] hover:bg-[#63e0d0]' : 'border border-[#1e2a38] text-[#c9d6e3] hover:border-[#4fd1c5]/50'}`}>{t.cta}</a>
           </div>
         ))}
       </div>
@@ -338,9 +348,9 @@ function Footer() {
         </div>
         <p className="text-[#3d5468] text-xs font-mono">your data never leaves your server</p>
         <div className="flex gap-6 text-xs text-[#5c7186]">
-          <a href="#" className="hover:text-[#c9d6e3] transition-colors">Docs</a>
-          <a href="#" className="hover:text-[#c9d6e3] transition-colors">Changelog</a>
-          <a href="#" className="hover:text-[#c9d6e3] transition-colors">Support</a>
+          <a href={REPO_URL} className="hover:text-[#c9d6e3] transition-colors">Docs</a>
+          <a href={RELEASE_URL} className="hover:text-[#c9d6e3] transition-colors">Changelog</a>
+          <a href={ISSUES_URL} className="hover:text-[#c9d6e3] transition-colors">Support</a>
         </div>
       </div>
     </footer>
