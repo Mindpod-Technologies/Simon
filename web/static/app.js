@@ -13,12 +13,23 @@
   var docsPanel = document.getElementById("docs-panel");
   var docsToggle = document.getElementById("docs-toggle");
   var uploadsList = document.getElementById("uploads-list");
-  var docsList = document.getElementById("docs-list");
+  var artifactsList = document.getElementById("artifacts-list");
   var jobsList = document.getElementById("jobs-list");
   var schedulesList = document.getElementById("schedules-list");
+  var taskSelect = document.getElementById("task-select");
+  var newTaskBtn = document.getElementById("new-task");
+  var previewModal = document.getElementById("preview-modal");
+  var previewTitle = document.getElementById("preview-title");
+  var previewBody = document.getElementById("preview-body");
+  var previewDownload = document.getElementById("preview-download");
+  var previewClose = document.getElementById("preview-close");
 
   var sessionId = null;
   var busy = false;
+
+  var IMAGE_EXTS = [".png", ".jpg", ".jpeg", ".gif", ".svg"];
+  var TEXT_EXTS = [".md", ".txt", ".csv", ".json", ".log", ".py",
+                   ".yaml", ".yml", ".html", ".sh"];
 
   function setStatus(text) { statusEl.textContent = text; }
 
@@ -31,6 +42,71 @@
     if (on) orb.classList.remove("active");
   }
 
+  function extOf(name) {
+    var i = name.lastIndexOf(".");
+    return i >= 0 ? name.slice(i).toLowerCase() : "";
+  }
+
+  function artifactUrl(relpath, download) {
+    var url = "/api/artifacts/" + relpath.split("/").map(encodeURIComponent).join("/");
+    var params = [];
+    if (sessionId) params.push("session_id=" + encodeURIComponent(sessionId));
+    if (download) params.push("download=1");
+    return params.length ? url + "?" + params.join("&") : url;
+  }
+
+  /* ---- message rendering (with inline artifacts) ---- */
+
+  var ARTIFACT_RE = /\[artifact:([^\]\s]+)\]/g;
+
+  function appendRichText(container, text) {
+    /* Render text with [artifact:path] markers as images / cards. */
+    var last = 0;
+    var match;
+    ARTIFACT_RE.lastIndex = 0;
+    var found = false;
+    while ((match = ARTIFACT_RE.exec(text)) !== null) {
+      found = true;
+      var before = text.slice(last, match.index).trim();
+      if (before) {
+        container.appendChild(document.createTextNode(before + "\n"));
+      }
+      container.appendChild(artifactNode(match[1]));
+      last = match.index + match[0].length;
+    }
+    var tail = text.slice(last).trim();
+    if (tail || !found) {
+      container.appendChild(document.createTextNode(tail));
+    }
+  }
+
+  function artifactNode(relpath) {
+    var name = relpath.split("/").pop();
+    var ext = extOf(name);
+    if (IMAGE_EXTS.indexOf(ext) >= 0) {
+      var img = document.createElement("img");
+      img.className = "artifact-img";
+      img.src = artifactUrl(relpath);
+      img.alt = name;
+      img.title = name + " — click to enlarge";
+      img.addEventListener("click", function () { openPreview(relpath); });
+      return img;
+    }
+    var card = document.createElement("div");
+    card.className = "artifact-card";
+    var icon = document.createElement("span");
+    icon.className = "icon";
+    icon.textContent = ext === ".docx" || ext === ".pdf" ? "\u{1F4C4}" : "\u{1F4CE}";
+    var fname = document.createElement("span");
+    fname.className = "fname";
+    fname.textContent = name;
+    card.appendChild(icon);
+    card.appendChild(fname);
+    card.title = "Preview " + name;
+    card.addEventListener("click", function () { openPreview(relpath); });
+    return card;
+  }
+
   function addMsg(who, text, cssClass) {
     var div = document.createElement("div");
     div.className = "msg " + (cssClass || (who === "You" ? "user" : "simon"));
@@ -38,15 +114,30 @@
     label.className = "who";
     label.textContent = who.toUpperCase();
     div.appendChild(label);
-    div.appendChild(document.createTextNode(text));
+    var body = document.createElement("span");
+    div.appendChild(body);
+    setMsgText(div, text);
     transcript.appendChild(div);
     transcript.scrollTop = transcript.scrollHeight;
     return div;
   }
 
+  function setMsgText(div, text) {
+    /* Plain during streaming (fast), rich-rendered on completion. */
+    var body = div.children[1];
+    body.textContent = "";
+    body.appendChild(document.createTextNode(text));
+  }
+
+  function renderMsgRich(div, text) {
+    var body = div.children[1];
+    body.textContent = "";
+    appendRichText(body, text);
+    transcript.scrollTop = transcript.scrollHeight;
+  }
+
   function systemMsg(text) {
-    var div = addMsg("System", text, "system");
-    return div;
+    return addMsg("System", text, "system");
   }
 
   function setBusy(on) {
@@ -58,6 +149,9 @@
   }
 
   function playTts(text) {
+    // Strip artifact markers — Simon shouldn't read file paths aloud.
+    text = text.replace(ARTIFACT_RE, "").trim();
+    if (!text) return;
     orbSpeaking(true);
     setStatus("SPEAKING");
     fetch("/api/tts", {
@@ -88,7 +182,7 @@
       });
   }
 
-  /* ---- documents panel ---- */
+  /* ---- files panel ---- */
 
   function fmtSize(bytes) {
     if (bytes < 1024) return bytes + " B";
@@ -96,12 +190,17 @@
     return (bytes / (1024 * 1024)).toFixed(1) + " MB";
   }
 
-  function docItem(name, size, actions) {
+  var KIND_ICON = {
+    chart: "\u{1F4CA}", document: "\u{1F4C4}", code: "\u{1F4BB}",
+    data: "\u{1F4C8}", other: "\u{1F4CE}"
+  };
+
+  function docItem(name, size, actions, badge) {
     var div = document.createElement("div");
     div.className = "doc-item";
     var nameEl = document.createElement("div");
     nameEl.className = "name";
-    nameEl.textContent = name;
+    nameEl.textContent = (badge ? badge + " " : "") + name;
     var meta = document.createElement("div");
     meta.className = "meta";
     meta.textContent = fmtSize(size);
@@ -131,7 +230,8 @@
   }
 
   function refreshDocuments() {
-    fetch("/api/uploads")
+    var uploadsUrl = "/api/uploads";
+    fetch(uploadsUrl)
       .then(function (res) { return res.json(); })
       .then(function (data) {
         uploadsList.innerHTML = "";
@@ -147,20 +247,22 @@
         });
       })
       .catch(function () { /* panel is best-effort */ });
-    fetch("/api/documents")
+    var artUrl = "/api/artifacts" +
+      (sessionId ? "?session_id=" + encodeURIComponent(sessionId) : "");
+    fetch(artUrl)
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        docsList.innerHTML = "";
+        artifactsList.innerHTML = "";
         if (!data.files || !data.files.length) {
-          docsList.innerHTML =
+          artifactsList.innerHTML =
             '<span class="docs-empty">Nothing created yet.</span>';
           return;
         }
         data.files.forEach(function (f) {
-          docsList.appendChild(docItem(f.name, f.size, [
-            actionLink("DOWNLOAD",
-              "/api/documents/" + encodeURIComponent(f.name))
-          ]));
+          artifactsList.appendChild(docItem(f.path, f.size, [
+            actionButton("PREVIEW", function () { openPreview(f.path); }),
+            actionLink("SAVE", artifactUrl(f.path, true))
+          ], KIND_ICON[f.kind] || KIND_ICON.other));
         });
       })
       .catch(function () { /* panel is best-effort */ });
@@ -241,7 +343,7 @@
           systemMsg("Uploaded " + data.name + " — " +
             data.chars.toLocaleString() + " chars ingested into Simon's memory" +
             (data.chunks ? " (" + data.chunks + " passages)" : "") +
-            ". Click REVIEW in the Documents panel, or ask Simon about it.");
+            ". Click REVIEW in the Files panel, or ask Simon about it.");
         }
         refreshDocuments();
       })
@@ -270,6 +372,124 @@
 
   docsToggle.addEventListener("click", function () {
     docsPanel.classList.toggle("open");
+  });
+
+  /* ---- artifact preview modal ---- */
+
+  function openPreview(relpath) {
+    var name = relpath.split("/").pop();
+    var ext = extOf(name);
+    previewTitle.textContent = relpath;
+    previewDownload.href = artifactUrl(relpath, true);
+    previewBody.textContent = "";
+    if (IMAGE_EXTS.indexOf(ext) >= 0) {
+      var img = document.createElement("img");
+      img.src = artifactUrl(relpath);
+      img.alt = name;
+      previewBody.appendChild(img);
+    } else if (ext === ".pdf") {
+      var frame = document.createElement("iframe");
+      frame.src = artifactUrl(relpath);
+      previewBody.appendChild(frame);
+    } else if (TEXT_EXTS.indexOf(ext) >= 0) {
+      var pre = document.createElement("pre");
+      pre.textContent = "Loading…";
+      previewBody.appendChild(pre);
+      fetch(artifactUrl(relpath))
+        .then(function (res) { return res.text(); })
+        .then(function (text) { pre.textContent = text; })
+        .catch(function () { pre.textContent = "Preview unavailable."; });
+    } else {
+      var pre2 = document.createElement("pre");
+      pre2.textContent = "No inline preview for this file type — " +
+        "use DOWNLOAD instead.";
+      previewBody.appendChild(pre2);
+    }
+    previewModal.classList.add("open");
+  }
+
+  function closePreview() { previewModal.classList.remove("open"); }
+  previewClose.addEventListener("click", closePreview);
+  previewModal.addEventListener("click", function (e) {
+    if (e.target === previewModal) closePreview();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closePreview();
+  });
+
+  /* ---- tasks ---- */
+
+  function refreshTasks(selectSlug) {
+    fetch("/api/tasks")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var current = taskSelect.value;
+        taskSelect.innerHTML = '<option value="">Main session</option>';
+        (data.tasks || []).forEach(function (t) {
+          var opt = document.createElement("option");
+          opt.value = t.slug;
+          opt.textContent = t.name + (t.files ? " (" + t.files + ")" : "");
+          opt.dataset.session = t.session_id;
+          taskSelect.appendChild(opt);
+        });
+        taskSelect.value = selectSlug !== undefined ? selectSlug : current;
+      })
+      .catch(function () { /* best-effort */ });
+  }
+
+  function loadSession(session) {
+    transcript.innerHTML = "";
+    var url = "/api/history" +
+      (session ? "?session_id=" + encodeURIComponent(session) : "");
+    fetch(url)
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        sessionId = data.session_id;
+        var msgs = (data.messages || []).filter(function (m) {
+          return m.role === "user" || m.role === "assistant";
+        });
+        if (!msgs.length) {
+          addMsg("Simon", "Good day, sir. Simon online and at your service.");
+          return;
+        }
+        msgs.slice(-30).forEach(function (m) {
+          var div = addMsg(m.role === "user" ? "You" : "Simon", m.content);
+          if (m.role === "assistant") renderMsgRich(div, m.content);
+        });
+      })
+      .catch(function () {
+        addMsg("Simon", "Good day, sir. Simon online and at your service.");
+      });
+  }
+
+  taskSelect.addEventListener("change", function () {
+    var opt = taskSelect.selectedOptions[0];
+    var session = opt && opt.dataset.session ? opt.dataset.session : null;
+    loadSession(session);
+    refreshDocuments();
+  });
+
+  newTaskBtn.addEventListener("click", function () {
+    var name = window.prompt("Name the new task workspace:", "");
+    if (!name || !name.trim()) return;
+    fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() })
+    })
+      .then(function (res) { return res.json(); })
+      .then(function (task) {
+        if (task.error) {
+          systemMsg("Task creation failed: " + task.error);
+          return;
+        }
+        refreshTasks(task.slug);
+        loadSession(task.session_id);
+        refreshDocuments();
+        systemMsg("Task workspace \"" + task.name +
+          "\" ready — this conversation and its files are now scoped to it.");
+      })
+      .catch(function () { systemMsg("Task creation failed."); });
   });
 
   /* ---- chat ---- */
@@ -308,12 +528,15 @@
               replyDiv = addMsg("Simon", "");
             }
             full += data;
-            replyDiv.lastChild.textContent = full;
+            setMsgText(replyDiv, full);
             transcript.scrollTop = transcript.scrollHeight;
           } else if (evName === "done") {
             full = data;
-            if (replyDiv) replyDiv.lastChild.textContent = full;
-            else addMsg("Simon", full);
+            if (replyDiv) renderMsgRich(replyDiv, full);
+            else {
+              var div = addMsg("Simon", "");
+              renderMsgRich(div, full);
+            }
           } else if (evName === "session") {
             sessionId = data;
           }
@@ -352,7 +575,7 @@
         orbThinking(false);
         setBusy(false);
         setStatus("ONLINE");
-        refreshDocuments(); // Simon may have created a document this turn
+        refreshDocuments(); // Simon may have created an artifact this turn
         refreshActivity();  // …or queued a job / created an automation
         if (full) playTts(full);
       });
@@ -412,8 +635,9 @@
     if (e.key === "Enter") send();
   });
 
+  refreshTasks();
+  loadSession(null);
   refreshDocuments();
   refreshActivity();
   setInterval(refreshActivity, 15000); // jobs/schedules update live
-  addMsg("Simon", "Good day, sir. Simon online and at your service.");
 })();

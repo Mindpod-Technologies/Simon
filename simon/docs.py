@@ -154,7 +154,8 @@ def _create_document(title: str, content: str, format: str = "md",
     log.info("created document %s (%d chars)", path.name, len(content))
     return (f"Created document '{path.name}' ({len(content)} chars). It is "
             f"available in the web UI Documents panel and at "
-            f"workspace/documents/{path.name}.")
+            f"workspace/documents/{path.name}.\n"
+            f"[artifact:documents/{path.name}]")
 
 
 def register_docs_tools(registry, settings) -> None:

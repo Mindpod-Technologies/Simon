@@ -206,6 +206,13 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
         log.warning("document tools unavailable: %s", exc)
 
     try:
+        from .. import charts
+
+        charts.register_chart_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("chart tools unavailable: %s", exc)
+
+    try:
         from . import schedules_tool
 
         schedules_tool.register_schedule_tools(registry, settings)

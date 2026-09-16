@@ -53,6 +53,31 @@
     letter-spacing: 0.15em;
     padding: 6px 12px;
   }
+  /* ---- task switcher ---- */
+  .task-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .task-bar label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+  }
+  #task-select {
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    max-width: 220px;
+    outline: none;
+    cursor: pointer;
+  }
+  #task-select:focus { border-color: rgba(63,198,201,0.45); }
+  #new-task { font-size: 11px; letter-spacing: 0.1em; padding: 6px 12px; }
   .layout {
     flex: 1;
     display: flex;
@@ -105,15 +130,9 @@
       rgba(63,198,201,0.15) 55%,
       transparent 75%);
   }
-  .orb.active {
-    animation: orb-pulse 1.4s ease-in-out infinite;
-  }
-  .orb.active::after {
-    animation: core-pulse 1.4s ease-in-out infinite;
-  }
-  .orb.speaking {
-    animation: orb-pulse 0.55s ease-in-out infinite;
-  }
+  .orb.active { animation: orb-pulse 1.4s ease-in-out infinite; }
+  .orb.active::after { animation: core-pulse 1.4s ease-in-out infinite; }
+  .orb.speaking { animation: orb-pulse 0.55s ease-in-out infinite; }
   @keyframes orb-pulse {
     0%, 100% { box-shadow: 0 0 22px var(--accent-dim), inset 0 0 22px var(--accent-dim); transform: scale(1); }
     50% { box-shadow: 0 0 48px var(--accent-glow), inset 0 0 40px var(--accent-glow); transform: scale(1.04); }
@@ -171,6 +190,34 @@
     margin-bottom: 5px;
   }
   .msg.simon .who { color: var(--accent); opacity: 0.7; }
+  /* ---- inline artifacts in chat ---- */
+  .artifact-img {
+    display: block;
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 10px;
+    border: 1px solid var(--panel-border);
+    cursor: zoom-in;
+  }
+  .artifact-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 9px 12px;
+    border: 1px solid rgba(63,198,201,0.3);
+    border-radius: 8px;
+    background: var(--accent-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .artifact-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-dim);
+  }
+  .artifact-card .icon { font-size: 16px; }
+  .artifact-card .fname { color: var(--accent); word-break: break-all; }
   /* ---- input ---- */
   .input-bar {
     display: flex;
@@ -220,7 +267,7 @@
   button:disabled { opacity: 0.4; cursor: default; }
   /* ---- documents sidebar ---- */
   #docs-panel {
-    width: 270px;
+    width: 290px;
     flex-shrink: 0;
     border-left: 1px solid var(--panel-border);
     background: var(--panel);
@@ -300,9 +347,92 @@
     padding: 8px 0 2px;
   }
   #docs-panel.dragover #drop-hint { display: block; }
+  /* ---- artifact preview modal ---- */
+  #preview-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: rgba(4, 7, 9, 0.82);
+    backdrop-filter: blur(3px);
+    align-items: center;
+    justify-content: center;
+  }
+  #preview-modal.open { display: flex; }
+  #preview-box {
+    width: min(880px, 92vw);
+    height: min(640px, 88vh);
+    background: var(--panel);
+    border: 1px solid rgba(63,198,201,0.25);
+    border-radius: 12px;
+    box-shadow: 0 0 50px rgba(63,198,201,0.12);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #preview-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  #preview-title {
+    flex: 1;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    word-break: break-all;
+  }
+  #preview-head button, #preview-head a {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    padding: 5px 12px;
+    text-decoration: none;
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--text-dim);
+    background: transparent;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  #preview-head button:hover, #preview-head a:hover {
+    color: var(--accent);
+    border-color: rgba(63,198,201,0.45);
+  }
+  #preview-body {
+    flex: 1;
+    overflow: auto;
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  #preview-body pre {
+    width: 100%;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+  }
+  #preview-body img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: auto;
+  }
+  #preview-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #fff;
+    border-radius: 8px;
+  }
   /* ---- narrow screens: sidebar becomes overlay ---- */
   @media (max-width: 900px) {
     #docs-toggle { display: block; }
+    .task-bar label { display: none; }
     #docs-panel {
       position: fixed;
       top: 49px;
@@ -322,7 +452,14 @@
     <h1>SIMON</h1>
     <span class="status" id="status">ONLINE</span>
     <span class="spacer"></span>
-    <button id="docs-toggle">DOCUMENTS</button>
+    <div class="task-bar">
+      <label>TASK</label>
+      <select id="task-select" title="Switch task workspace">
+        <option value="">Main session</option>
+      </select>
+      <button id="new-task" title="Create a new task workspace">+ TASK</button>
+    </div>
+    <button id="docs-toggle">FILES</button>
     <a href="/settings" style="text-decoration:none"><button>SETTINGS</button></a>
   </header>
   <div class="layout">
@@ -340,17 +477,27 @@
       </div>
     </main>
     <aside id="docs-panel">
-      <h2>DOCUMENTS</h2>
+      <h2>FILES</h2>
       <div id="drop-hint">DROP TO UPLOAD</div>
+      <h3>ARTIFACTS</h3>
+      <div id="artifacts-list"><span class="docs-empty">Nothing created yet.</span></div>
       <h3>UPLOADED</h3>
       <div id="uploads-list"><span class="docs-empty">Nothing uploaded yet.</span></div>
-      <h3>CREATED BY SIMON</h3>
-      <div id="docs-list"><span class="docs-empty">Nothing created yet.</span></div>
       <h3>BACKGROUND JOBS</h3>
       <div id="jobs-list"><span class="docs-empty">No jobs yet.</span></div>
       <h3>AUTOMATIONS</h3>
       <div id="schedules-list"><span class="docs-empty">No recurring automations yet.</span></div>
     </aside>
+  </div>
+  <div id="preview-modal">
+    <div id="preview-box">
+      <div id="preview-head">
+        <span id="preview-title"></span>
+        <a id="preview-download" href="#" download>DOWNLOAD</a>
+        <button id="preview-close">CLOSE</button>
+      </div>
+      <div id="preview-body"></div>
+    </div>
   </div>
   <script src="/static/app.js"></script>
 </body>

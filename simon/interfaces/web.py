@@ -32,6 +32,15 @@ class TTSRequest(BaseModel):
     text: str
 
 
+class TaskRequest(BaseModel):
+    name: str
+
+
+class FactRequest(BaseModel):
+    key: str
+    value: str
+
+
 def _chunk_words(text: str, size: int = 4):
     """Yield groups of words for a pleasant streaming effect."""
     words = text.split(" ")
@@ -45,9 +54,27 @@ def create_app(settings) -> FastAPI:
 
     def agent_for(session_id: str) -> Agent:
         if session_id not in agents:
-            agents[session_id] = Agent(settings, session_id=session_id,
+            from simon import tasks as tasks_mod
+            agent_settings = settings
+            workspace = tasks_mod.session_workspace(session_id, settings)
+            if workspace is not None:
+                # Task sessions get their own workspace directory — files
+                # Simon reads/writes stay scoped to that project.
+                agent_settings = settings.model_copy(
+                    update={"simon_workspace_dir": str(workspace)})
+            agents[session_id] = Agent(agent_settings, session_id=session_id,
                                        interface="web")
         return agents[session_id]
+
+    def settings_for_session(session_id: str | None):
+        """Settings whose workspace matches the session (task-aware)."""
+        if session_id:
+            from simon import tasks as tasks_mod
+            workspace = tasks_mod.session_workspace(session_id, settings)
+            if workspace is not None:
+                return settings.model_copy(
+                    update={"simon_workspace_dir": str(workspace)})
+        return settings
 
     def session_for(request: Request, supplied: str | None) -> str:
         if supplied:
@@ -170,6 +197,83 @@ def create_app(settings) -> FastAPI:
             {"id": r["id"], "description": r["description"][:90],
              "when": sched_mod.describe(r)}
             for r in rows]}
+
+    # ---- artifacts: workspace files Simon creates (charts, docs, code) ----
+
+    @app.get("/api/artifacts")
+    async def artifacts_list(session_id: str | None = None):
+        from simon import artifacts as art_mod
+        return {"files": art_mod.list_artifacts(
+            settings_for_session(session_id))}
+
+    @app.get("/api/artifacts/{relpath:path}")
+    async def artifact_fetch(relpath: str, session_id: str | None = None,
+                             download: bool = False):
+        from simon import artifacts as art_mod
+        path = art_mod.resolve_artifact(settings_for_session(session_id),
+                                        relpath)
+        if path is None:
+            return JSONResponse({"error": "no such artifact"},
+                                status_code=404)
+        media = art_mod.media_type_for(path)
+        if download:
+            return FileResponse(path, filename=path.name)
+        return FileResponse(path, media_type=media)
+
+    # ---- tasks: named projects with their own workspace + session ----
+
+    @app.get("/api/tasks")
+    async def tasks_list():
+        from simon import tasks as tasks_mod
+        return {"tasks": tasks_mod.list_tasks(settings)}
+
+    @app.post("/api/tasks")
+    async def task_create(req: TaskRequest):
+        from simon import tasks as tasks_mod
+        try:
+            task = tasks_mod.create_task(req.name, settings)
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=400)
+        return task
+
+    @app.delete("/api/tasks/{slug}")
+    async def task_delete(slug: str):
+        from simon import tasks as tasks_mod
+        if not tasks_mod.delete_task(slug, settings):
+            return JSONResponse({"error": "no such task"}, status_code=404)
+        agents.pop(tasks_mod.session_for(slug), None)
+        return {"deleted": slug}
+
+    # ---- memory: browse/edit Simon's long-term facts ----
+
+    @app.get("/api/history")
+    async def history(request: Request, session_id: str | None = None):
+        from simon import memory
+        sid = session_for(request, session_id)
+        return {"session_id": sid,
+                "messages": memory.get_history(sid, limit=60)}
+
+    @app.get("/api/facts")
+    async def facts_list():
+        from simon import memory
+        return {"facts": memory.list_facts()}
+
+    @app.post("/api/facts")
+    async def fact_save(req: FactRequest):
+        from simon import memory
+        key = req.key.strip().lower().replace(" ", "_")
+        if not key or not req.value.strip():
+            return JSONResponse({"error": "key and value are required"},
+                                status_code=400)
+        memory.set_fact(key, req.value.strip())
+        return {"saved": key}
+
+    @app.delete("/api/facts/{key}")
+    async def fact_delete(key: str):
+        from simon import memory
+        if not memory.delete_fact(key):
+            return JSONResponse({"error": "no such fact"}, status_code=404)
+        return {"deleted": key}
 
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"

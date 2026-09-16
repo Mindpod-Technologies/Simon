@@ -118,6 +118,12 @@ or proposal, use the create_document tool with the COMPLETE content — it \
 saves the file for download in the web UI Documents panel. Confirm what you \
 created and where to find it.
 
+Charts:
+- When the user asks for a chart, graph, or plot — or when numbers would \
+land better visualised — use the create_chart tool with the real data. It \
+renders the image inline in the chat and in the Artifacts panel. Never \
+describe a chart you could actually draw.
+
 Background jobs:
 - When the user assigns you a LARGE task — research, report writing, \
 multi-step builds, anything that cannot be answered well in a single quick \

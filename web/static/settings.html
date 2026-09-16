@@ -115,6 +115,28 @@ async function load() {
   const lic = (cfg.sections['License']||[]).map(field).join('');
   html += `<section><h2>License</h2>${lic}</section>`;
 
+  // Memory — Simon's long-term facts
+  const facts = await fetch('/api/facts').then(r=>r.json()).catch(()=>({facts:[]}));
+  html += `<section><h2>Memory</h2>
+    <p class="note">Facts Simon has memorised across every channel (web, Slack, Telegram). Delete anything wrong — a bad fact misleads every future answer.</p>
+    <div id="fact-list">` +
+    (facts.facts.length ? facts.facts.map(f => `
+      <div class="ver" style="align-items:flex-start;gap:8px;border-bottom:1px solid var(--border,#16232b);padding:8px 0">
+        <div style="flex:1;min-width:0">
+          <div style="color:var(--accent);font-size:12px">${esc(f.key)}</div>
+          <div style="font-size:12px;word-break:break-word">${esc(f.value)}</div>
+          <div class="note" style="margin-top:2px">${esc(f.updated_at)}</div>
+        </div>
+        <button class="ghost fact-del" data-key="${esc(f.key)}">Delete</button>
+      </div>`).join('') : '<p class="note">No facts memorised yet.</p>') +
+    `</div>
+    <div class="actions" style="margin-top:10px">
+      <input id="fact-key" placeholder="key (e.g. favourite_colour)" style="flex:1">
+      <input id="fact-value" placeholder="value" style="flex:2">
+      <button class="ghost" id="fact-add">Add fact</button>
+      <span class="msg" id="fact-msg"></span>
+    </div></section>`;
+
   // Ollama models (informational picker aid)
   if (models.models.length) {
     html += `<section><h2>Installed local models</h2><div class="ver" style="flex-direction:column;align-items:flex-start;gap:6px">` +
@@ -174,6 +196,26 @@ function wire() {
   };
 
   document.getElementById('recheck').onclick = () => load();
+
+  main.querySelectorAll('.fact-del').forEach(btn => {
+    btn.onclick = async () => {
+      const res = await fetch('/api/facts/' + encodeURIComponent(btn.dataset.key),
+        {method:'DELETE'});
+      if (res.ok) load();
+    };
+  });
+
+  document.getElementById('fact-add').onclick = async () => {
+    const msg = document.getElementById('fact-msg');
+    const key = document.getElementById('fact-key').value.trim();
+    const value = document.getElementById('fact-value').value.trim();
+    if (!key || !value) { msg.className='msg warn'; msg.textContent='key and value required'; return; }
+    const res = await fetch('/api/facts', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({key, value})});
+    if (res.ok) load();
+    else { const d = await res.json(); msg.className='msg err'; msg.textContent = d.error || 'save failed'; }
+  };
 
   document.getElementById('save-raw').onclick = async () => {
     const msg = document.getElementById('raw-msg');

@@ -120,6 +120,30 @@ def get_fact(key: str, path: Optional[str] = None) -> Optional[str]:
     return row["value"] if row else None
 
 
+def list_facts(path: Optional[str] = None) -> list[dict]:
+    """All long-term facts, newest first — for the Settings memory UI."""
+    conn = _connect(path)
+    try:
+        rows = conn.execute(
+            "SELECT key, value, updated_at FROM facts "
+            "ORDER BY updated_at DESC").fetchall()
+    finally:
+        conn.close()
+    return [{"key": r["key"], "value": r["value"],
+             "updated_at": r["updated_at"]} for r in rows]
+
+
+def delete_fact(key: str, path: Optional[str] = None) -> bool:
+    """Delete a fact by key. Returns True when one was removed."""
+    conn = _connect(path)
+    try:
+        cur = conn.execute("DELETE FROM facts WHERE key = ?", (key,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 _QUERY_STOPWORDS = {
     "the", "a", "an", "is", "are", "was", "on", "of", "my", "our", "your",
     "what", "what's", "whats", "where", "when", "who", "which", "how",
