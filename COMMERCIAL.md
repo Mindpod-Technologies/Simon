@@ -63,7 +63,7 @@ Recommended pipeline, cheapest first:
    - *Zapier/n8n/Make:* trigger on Stripe `checkout.session.completed` →
      call a tiny webhook you host that runs `keygen.py` (or re-implement the
      20-line signing logic in the workflow) → email the key with install
-     instructions. Keep `tools/keygen.py` and its private key on that server
+     instructions. Keep the vendor-only keygen and its private key on that server (never in this repo)
      only.
    - *Manual:* fine at low volume — run keygen, paste into an email template.
 3. **Activate:** customer sets `SIMON_LICENSE_KEY` and
@@ -97,7 +97,7 @@ Customers may rebrand their deployment:
 - **Name/env vars:** env keys are the `SIMON_*` prefix and
   `simon_workspace_dir`/`simon_allow_shell`; a rename is a mechanical
   find-replace across `simon/config.py`, `.env.example`, and docs. The
-  license-key prefix `SIMON-` lives in `simon/licensing.py` / `tools/keygen.py`.
+  license-key prefix `SIMON-` lives in `simon/licensing.py` and the vendor-only keygen.
 - **Web UI:** `web/static/index.html` is dependency-free — swap title,
   colors, logo freely.
 - Recommend business-tier customers keep the `LICENSE` file intact and

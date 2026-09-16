@@ -15,7 +15,12 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
+VENDOR_KEYGEN = Path.home() / "simon-vendor" / "keygen.py"
 FAIL_MARKER = "could not validate a commercial license"
+
+pytestmark = pytest.mark.skipif(
+    not VENDOR_KEYGEN.exists(),
+    reason="E2E needs real vendor-signed keys; keygen lives outside the repo")
 
 
 def _run_simon(env_extra: dict[str, str], timeout: int = 30) -> tuple[int, str]:
@@ -43,7 +48,7 @@ def _run_simon(env_extra: dict[str, str], timeout: int = 30) -> tuple[int, str]:
 
 @pytest.fixture()
 def pro_key() -> str:
-    sys.path.insert(0, str(REPO / "tools"))
+    sys.path.insert(0, str(VENDOR_KEYGEN.parent))
     from keygen import make_key  # vendor tool — tests only
     return make_key("pro", "customer@example.com", "2099-01-01")
 
@@ -81,7 +86,7 @@ def test_tampered_key_refused(pro_key: str) -> None:
 
 
 def test_expired_key_refused() -> None:
-    sys.path.insert(0, str(REPO / "tools"))
+    sys.path.insert(0, str(VENDOR_KEYGEN.parent))
     from keygen import make_key
     expired = make_key("pro", "customer@example.com", "2020-01-01")
     code, out = _run_simon({"SIMON_REQUIRE_LICENSE": "true",

@@ -8,7 +8,7 @@ where ``payload_b64url`` is the base64url encoding of a JSON object
 ``{"email": ..., "exp": "YYYY-MM-DD" or ""}`` and ``sig_b64url`` is the
 base64url encoding of the Ed25519 signature over the ASCII string
 ``"<plan>.<payload_b64url>"``. Only the vendor's PUBLIC key is embedded here;
-the private signing key lives exclusively in ``tools/keygen.py``.
+the private signing key lives outside this repository (vendor-only keygen).
 
 Design notes:
 
@@ -34,9 +34,9 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # Vendor Ed25519 PUBLIC key (raw 32 bytes, hex). The matching private key is
-# kept server-side in tools/keygen.py only. This is a throwaway keypair
-# generated for this distribution; rotate with `python tools/keygen.py --rotate`.
-_VENDOR_PUBLIC_KEY_HEX = "ab22d51f68cbf52bd4f5274ba64a05b0603b39a2d9005da545a31e718ab63c6d"
+# kept OUTSIDE this repo (vendor-only keygen) — never ship it. Rotated
+# 2026-09-16 before the repo went public; the previous pair was retired.
+_VENDOR_PUBLIC_KEY_HEX = "19ba4f202833cc247d8c7d0d07aefae390381142542190d1af782ba96021dad6"
 
 VALID_PLANS = ("trial", "pro", "business")
 

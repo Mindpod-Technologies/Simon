@@ -401,5 +401,5 @@ Keys are Ed25519-signed and verified fully offline — no phone-home, no
 telemetry. Without a key (or even without the `cryptography` package
 installed) Simon simply runs as the free `trial` plan. See
 [COMMERCIAL.md](COMMERCIAL.md) for tiers, fulfillment, and white-label
-notes, [LICENSE](LICENSE) for the legal text, and `tools/keygen.py` for the
+notes, [LICENSE](LICENSE) for the legal text, and the vendor-only keygen for the
 vendor-side key generator (private key — never ship to customers).
