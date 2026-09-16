@@ -195,3 +195,17 @@ def test_task_session_scopes_artifacts(client):
     # Main workspace does NOT see the task file
     main = c.get("/api/artifacts").json()
     assert not any(f["path"] == "only-here.txt" for f in main["files"])
+
+
+def test_chart_and_document_filenames_have_no_spaces(settings):
+    """Spaces in filenames break the [artifact:path] marker (single-token
+    path) — created artifact names must be space-free."""
+    out = charts._create_chart(
+        "Launch Budget", "bar", ["A"], [{"values": [1]}], settings=settings)
+    marker = out.split("[artifact:")[1].rstrip("]")
+    assert " " not in marker
+    from simon import docs
+    out = docs._create_document("My Big Report", "content here",
+                                settings=settings)
+    marker = out.split("[artifact:")[1].rstrip("]")
+    assert " " not in marker

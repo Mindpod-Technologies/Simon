@@ -65,17 +65,17 @@ def test_save_upload_ingests_into_rag(settings, monkeypatch):
 def test_create_document_md(settings):
     out = docs._create_document("Test Report", "Body text here", "md",
                                 settings=settings)
-    assert "Test Report.md" in out
-    path = docs.documents_dir(settings) / "Test Report.md"
+    assert "Test_Report.md" in out
+    path = docs.documents_dir(settings) / "Test_Report.md"
     assert path.read_text().startswith("# Test Report")
-    assert docs.list_documents(settings)[0]["name"] == "Test Report.md"
+    assert docs.list_documents(settings)[0]["name"] == "Test_Report.md"
 
 
 def test_create_document_docx(settings):
     out = docs._create_document("Board Pack", "Revenue is up.", "docx",
                                 settings=settings)
-    assert "Board Pack.docx" in out
-    path = docs.documents_dir(settings) / "Board Pack.docx"
+    assert "Board_Pack.docx" in out
+    path = docs.documents_dir(settings) / "Board_Pack.docx"
     assert path.stat().st_size > 0
     # Round-trip: the docx we wrote can be read back.
     text = docs.extract_text(path)

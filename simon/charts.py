@@ -105,7 +105,7 @@ def _create_chart(title: str, chart_type: str, labels: list,
                         f"{len(labels)} values (one per label); "
                         f"'{s['name'] or 'series'}' has "
                         f"{len(s['values'])}.")
-        stem = docs.safe_name(title)
+        stem = docs.safe_name(title).replace(" ", "_")
         path = charts_dir(settings) / f"{stem}-{int(time.time())}.png"
         _render(chart_type, title, [str(l) for l in labels], clean_series,
                 x_label or "", y_label or "", path)

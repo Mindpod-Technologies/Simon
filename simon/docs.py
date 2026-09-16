@@ -137,7 +137,7 @@ def _create_document(title: str, content: str, format: str = "md",
     fmt = (format or "md").lower().lstrip(".")
     if fmt not in {"md", "txt", "docx"}:
         return f"Error: unsupported format '{format}' — use md, txt or docx."
-    stem = safe_name(title)
+    stem = safe_name(title).replace(" ", "_")  # spaces break artifact markers
     path = documents_dir(settings) / f"{stem}.{fmt}"
     if fmt == "docx":
         import docx
