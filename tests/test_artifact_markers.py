@@ -89,3 +89,20 @@ def test_claim_triggers_nudge_then_real_tool_call(tmp_path, monkeypatch):
                   session_id="test", llm=ClaimThenCallLLM())
     reply = agent.handle("make me a pie chart")
     assert "[artifact:charts/T.png]" in reply
+
+
+def test_rendered_above_claim_is_dishonest(tmp_path, monkeypatch):
+    """The exact K3 evasion seen in production: 'pie chart is rendered
+    above' without calling create_chart."""
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    agent = Agent(Settings(), registry=MarkerRegistry(),
+                  session_id="test", llm=MarkerLLM())
+    assert agent._looks_dishonest(
+        "Your **Team Split** pie chart is rendered above and available "
+        "in the Artifacts panel — Engineering 60%, sir.")
+    # Legitimate non-claims stay clean:
+    assert not agent._looks_dishonest(
+        "A pie chart would suit this data — shall I create one, sir?")
+    assert not agent._looks_dishonest(
+        "The chart would be rendered more clearly as a bar chart, sir.")

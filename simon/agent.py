@@ -101,7 +101,10 @@ _PRESENTS_ARTIFACT_RE = re.compile(
     r"\b(here(?: is|'s) (?:the |your |a |this )?(?:newly created )?"
     r"(?:pie |bar |line |scatter )?(?:chart|graph|plot|diagram|image|"
     r"spreadsheet|document|report)\b|"
-    r"the (?:chart|graph|plot|diagram) (?:above|below))\b",
+    r"the (?:chart|graph|plot|diagram) (?:above|below)|"
+    r"(?:pie |bar |line |scatter )?(?:chart|graph|plot|diagram)\s+"
+    r"(?:is\s+)?(?:now\s+)?(?:rendered|displayed|presented|attached|"
+    r"above|below)\b)",
     re.IGNORECASE)
 
 # Cap on claimed-action re-nudges. Each nudge is a full smart-model
