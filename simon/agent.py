@@ -751,14 +751,19 @@ class Agent:
             "not have access to", "no access to your",
             "unable to access", "not able to access", "cannot read files",
             "can't read files", "cannot browse your", "no permission",
-            "cannot list", "unable to read", "not able to read"))
+            "cannot list", "unable to read", "not able to read",
+            "cannot send", "can't send", "unable to send",
+            "not able to send", "don't have a mailbox",
+            "do not have a mailbox", "no mailbox", "lack a mailbox",
+            "cannot check your mail", "cannot check mail"))
         if not refusal:
             return False
         low = (user_text or "").lower()
         return any(k in low for k in (
             "file", "folder", "directory", "desktop", "documents",
             "downloads", "list_files", "read_file", "write_file",
-            "on my mac", "on this mac"))
+            "on my mac", "on this mac",
+            "email", "e-mail", "mail", "inbox", "message"))
 
     @staticmethod
     def _looks_cut_off(reply: str) -> bool:
@@ -863,7 +868,9 @@ class Agent:
     def _build_messages(self, user_text: str) -> list[dict]:
         """Assemble system prompt + recent history + the new user message."""
         system_prompt = SIMON_SYSTEM_PROMPT.format(
-            date=datetime.date.today().strftime("%A, %d %B %Y")
+            date=datetime.date.today().strftime("%A, %d %B %Y"),
+            mailbox=getattr(self.settings, "simon_mailbox", "")
+                    or "(not configured)",
         )
         # Deterministic recall: surface relevant remembered facts directly in
         # the system prompt so the model need not rely on calling a tool.

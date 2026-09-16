@@ -40,6 +40,9 @@ SMART_KEYWORDS = (
     # tool — route these to the smart model which follows through.
     "remember", "remind me", "note that", "don't forget", "do not forget",
     "keep in mind", "commit this", "save this",
+    # Mail: the fast tier runs tool-less, so any mail request routed there
+    # produces the false "I cannot send email" refusal.
+    "email", "e-mail", "mail", "inbox",
     # Corrections and meta-feedback: the fast model tends to paraphrase its
     # previous reply instead of engaging with the correction.
     "you said this", "you already said", "not what i asked", "try again",
