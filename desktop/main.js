@@ -40,7 +40,13 @@ let quitting = false;
 
 function healthy(url, timeoutMs = 2000) {
   return new Promise((resolve) => {
-    const req = http.get(url, (res) => resolve(res.statusCode === 200));
+    // Any HTTP response — including 303 (auth gate sends / to /setup or
+    // /login) and 401 — proves the server is alive. Only connection
+    // failure or a 5xx means "down".
+    const req = http.get(url, (res) => {
+      res.resume();
+      resolve(res.statusCode < 500);
+    });
     req.setTimeout(timeoutMs, () => { req.destroy(); resolve(false); });
     req.on('error', () => resolve(false));
   });
