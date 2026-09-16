@@ -4,6 +4,7 @@ suggestions."""
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 from typing import Any, Callable, Optional
@@ -145,7 +146,8 @@ class Scheduler:
             return
         try:
             agent = self.agent_factory()
-            briefing = agent.handle(
+            briefing = await asyncio.to_thread(
+                agent.handle,
                 "Good morning. Please prepare my morning briefing: today's "
                 "date, any relevant facts you remember, and anything I "
                 "should attend to today."
@@ -185,14 +187,21 @@ class Scheduler:
             return
         try:
             agent = self.agent_factory()
-            reply = agent.handle(
-                "Background mail check (autonomous). Use read_recent_emails "
-                "(count 5) on the simon@mindpodtech.com mailbox. Report ONLY "
-                "messages you have NOT already reported in this session. If "
-                "there is new mail needing the owner's attention, reply with "
-                "a tight briefing per message (from, subject, what it "
-                "needs). If there is nothing new, or nothing worth "
-                "interrupting for, reply with exactly: MAIL_CHECK_QUIET"
+            # Off the event loop (to_thread, same as the web/Slack/Teams
+            # interfaces) — a slow tool call in a background turn must not
+            # stall the scheduler or the chat sockets.
+            reply = await asyncio.to_thread(
+                agent.handle,
+                "Background mail check (autonomous). Use ONLY the "
+                "read_recent_emails tool (count 5) on the "
+                "simon@mindpodtech.com mailbox — that is an email address, "
+                "not a website; do NOT fetch or browse any web page. Report "
+                "ONLY messages you have NOT already reported in this "
+                "session. If there is new mail needing the owner's "
+                "attention, reply with a tight briefing per message (from, "
+                "subject, what it needs). If there is nothing new, or "
+                "nothing worth interrupting for, reply with exactly: "
+                "MAIL_CHECK_QUIET"
             )
             if reply and "MAIL_CHECK_QUIET" not in reply:
                 self.notify(f"\U0001F4EC Mail check: {reply}")
@@ -276,7 +285,8 @@ class Scheduler:
         try:
             digest = self._activity_digest(hours=1.0)
             agent = self.agent_factory()
-            status = agent.handle(
+            status = await asyncio.to_thread(
+                agent.handle,
                 "Scheduled hourly status update. Below is the REAL activity "
                 "log for the last hour. Report ONLY from it — 3-5 short "
                 "bullet points: what actually happened, what is running, "
@@ -336,7 +346,8 @@ class Scheduler:
             return  # deactivated between sync and fire
         try:
             agent = self.agent_factory()
-            result = agent.handle(
+            result = await asyncio.to_thread(
+                agent.handle,
                 TASK_PROMPT.format(description=row["description"]))
             if result:
                 self.notify(f"Scheduled task, sir — «{row['description'][:70]}»"
@@ -350,7 +361,7 @@ class Scheduler:
             return
         try:
             agent = self.agent_factory()
-            suggestions = agent.handle(SUGGEST_PROMPT)
+            suggestions = await asyncio.to_thread(agent.handle, SUGGEST_PROMPT)
             if suggestions:
                 self.notify("Weekly automation review, sir:\n\n" + suggestions)
         except Exception:
