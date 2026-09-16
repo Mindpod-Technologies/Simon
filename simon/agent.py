@@ -660,6 +660,27 @@ class Agent:
                          "the question?")
                 regenerated = True
 
+        # Artifact markers: tools that create files (charts, documents)
+        # emit [artifact:path] in their output so the chat UI can render
+        # the file inline. Models often paraphrase instead of quoting the
+        # marker — append any that went missing so created files ALWAYS
+        # surface in the reply.
+        try:
+            produced: list[str] = []
+            for m in messages:
+                if m.get("role") != "tool":
+                    continue
+                for marker in re.findall(r"\[artifact:([^\]\s]+)\]",
+                                         str(m.get("content") or "")):
+                    if marker not in produced:
+                        produced.append(marker)
+            missing = [p for p in produced if p not in reply]
+            if missing:
+                reply = reply.rstrip() + "\n" + "\n".join(
+                    f"[artifact:{p}]" for p in missing)
+        except Exception:  # pragma: no cover - never break a turn
+            pass
+
         memory.add_message(self.session_id, "assistant", reply)
         obs.record_event(
             "turn",
