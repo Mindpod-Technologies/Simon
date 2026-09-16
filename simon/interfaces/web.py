@@ -338,6 +338,13 @@ def create_app(settings) -> FastAPI:
             return JSONResponse({"error": "no such fact"}, status_code=404)
         return {"deleted": key}
 
+    @app.get("/api/license")
+    async def license_status():
+        """Current commercial license status (plan, email, expiry, reason)."""
+        from dataclasses import asdict
+        from simon import licensing
+        return asdict(licensing.check_license(settings))
+
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"
     )

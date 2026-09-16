@@ -113,7 +113,15 @@ async function load() {
 
   // License
   const lic = (cfg.sections['License']||[]).map(field).join('');
-  html += `<section><h2>License</h2>${lic}</section>`;
+  const st = await fetch('/api/license').then(r=>r.json()).catch(()=>null);
+  const pill = st
+    ? (st.valid
+        ? `<span class="pill">${esc(st.plan.toUpperCase())}${st.expires ? ' · expires ' + esc(st.expires) : ''}</span>`
+        : `<span class="pill warn">INVALID — ${esc(st.reason)}</span>`)
+    : '';
+  const who = st && st.email ? ` <span class="note">licensed to ${esc(st.email)}</span>` : '';
+  html += `<section><h2>License</h2><div class="ver">${pill}${who}</div>${lic}
+    <p class="note">Paste a purchased key above and restart to upgrade. Keys verify offline — no phone-home.</p></section>`;
 
   // Memory — Simon's long-term facts
   const facts = await fetch('/api/facts').then(r=>r.json()).catch(()=>({facts:[]}));

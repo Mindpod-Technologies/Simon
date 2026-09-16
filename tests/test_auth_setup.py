@@ -249,3 +249,17 @@ def test_monitor_first_run_points_at_setup(monkeypatch, tmp_path):
     r = c.get("/", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].endswith("/setup")
+
+
+# ------------------------------------------------------------ license endpoint
+
+def test_license_endpoint_gated_and_reports_trial(client, monkeypatch, tmp_path):
+    stored = auth.hash_password("owner-pass-123")
+    _patch_env(monkeypatch, tmp_path, {"SIMON_OWNER_PASSWORD_HASH": stored})
+    assert client.get("/api/license").status_code == 401
+    client.post("/api/login", json={"password": "owner-pass-123"})
+    r = client.get("/api/license")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["valid"] is True
+    assert body["plan"] == "trial"  # no key configured on the test settings

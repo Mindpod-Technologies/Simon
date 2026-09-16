@@ -1,0 +1,17 @@
+# Keep customer images lean and secret-free.
+# tools/keygen.py holds the vendor PRIVATE signing key — never ship it.
+.git
+.venv
+__pycache__
+tools
+tests
+evals
+desktop
+site
+workspace
+data
+*.pyc
+.env
+.env.bak
+Dockerfile
+docker-compose.yml
