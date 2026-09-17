@@ -53,11 +53,18 @@ notes are directional — it is a moving target, so we benchmark the *category*
 
 ## 4. Product split (confirmed)
 
-- **Simon** — the agent itself. The Viktor-style assistant: every channel
-  (web, Slack, Telegram, email, voice), memory, scheduler, tools, routing.
-- **Simon Work** — the product shell: desktop app, web UI, installer,
-  licensing, settings surface, marketing site. The Claude Cowork / Kimi Work
-  analog that wraps Simon.
+One brain, two surfaces, one brand family:
+
+- **Simon** — the agent itself, reachable everywhere: web, Slack, Teams,
+  Telegram, email, voice. The Viktor analog — the AI employee.
+- **Simon Work** — Simon on your desktop, plus bells and whistles: Electron
+  shell over the same UI, one-click installer (bundled Ollama), licensing,
+  auto-updates, WORKSPACE panel, and the marketing site. The Claude Cowork /
+  Kimi Work analog. It is NOT a second agent — it is the same Simon with
+  local-first muscle (offline models, deep file access, OS-level hands).
+
+Marketing line: "Simon is your AI employee. Simon Work is him sitting at
+your desk."
 
 ## 5. Build-next list (priority order)
 
