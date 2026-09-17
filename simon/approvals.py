@@ -98,6 +98,8 @@ _REJECT_RE = re.compile(
     r"^\s*(reject|rejected|no|nope|nah|don'?t|cancel|stop|abort|never mind"
     r"|nevermind|hold off)\b[.!]?\s*$",
     re.IGNORECASE)
+_DECISION_ID_RE = re.compile(
+    r"^\s*(approve|reject)\s*#?(\d+)\s*[.!]?\s*$", re.IGNORECASE)
 
 
 def classify_reply(text: str) -> Optional[str]:
@@ -106,7 +108,19 @@ def classify_reply(text: str) -> Optional[str]:
         return "approve"
     if _REJECT_RE.match(text or ""):
         return "reject"
+    if _DECISION_ID_RE.match(text or ""):
+        return _DECISION_ID_RE.match(text).group(1).lower()
     return None
+
+
+def classify_decision(text: str) -> tuple[Optional[str], Optional[int]]:
+    """Like classify_reply, but also parses an explicit id: 'approve 3'
+    returns ('approve', 3). Used for cross-channel approval when several
+    requests are pending at once."""
+    m = _DECISION_ID_RE.match(text or "")
+    if m:
+        return m.group(1).lower(), int(m.group(2))
+    return classify_reply(text), None
 
 
 # ---------------------------------------------------------------------------
@@ -172,8 +186,9 @@ def request(session_id: str, tool: str, args: dict, summary: str,
             where = interface or session_id
             _NOTIFIER(
                 f"Approval needed, sir (via {where}): I'd like to "
-                f"{summary}. Reply **approve** or **reject** in that "
-                f"conversation and I'll proceed accordingly.")
+                f"{summary}. Reply **approve** in any conversation with me "
+                f"— or **approve #{approval_id}** if more than one matter "
+                f"is pending.")
         except Exception:  # noqa: BLE001 - a failed push must not lose the ask
             logger.exception("approval notifier failed")
     return approval_id

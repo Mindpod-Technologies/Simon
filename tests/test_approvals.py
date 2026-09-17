@@ -198,3 +198,69 @@ def test_approvals_disabled_executes_immediately(db):
     reply = agent.handle("email the report to my boss")
     assert registry.executed != []
     assert "approve" not in reply.lower()
+
+
+# ---------------------------------------------------------------------------
+# Cross-channel approval
+# ---------------------------------------------------------------------------
+
+def test_classify_decision_with_id():
+    assert approvals.classify_decision("approve 3") == ("approve", 3)
+    assert approvals.classify_decision("reject #12") == ("reject", 12)
+    assert approvals.classify_decision("approve") == ("approve", None)
+    assert approvals.classify_decision("what's for lunch?") == (None, None)
+
+
+def test_cross_channel_approve_executes_other_sessions_pending(mail_agent):
+    agent, registry = mail_agent
+    agent.handle("email the report to my boss")      # parks in "mail-test"
+    pend = approvals.pending("mail-test")
+    assert pend is not None
+
+    # A different conversation (e.g. Telegram) answers the ask.
+    other = Agent(Settings(), registry=registry, session_id="telegram-42",
+                  llm=SensitiveLLM())
+    reply = other.handle("approve")
+    assert registry.executed and registry.executed[0][0] == "send_email"
+    assert approvals.pending("mail-test") is None
+    assert reply
+
+
+def test_cross_channel_reject_cancels_other_sessions_pending(mail_agent):
+    agent, registry = mail_agent
+    agent.handle("email the report to my boss")
+    other = Agent(Settings(), registry=registry, session_id="slack-U1",
+                  llm=SensitiveLLM())
+    reply = other.handle("reject")
+    assert registry.executed == []
+    assert "stood down" in reply.lower()
+
+
+def test_unknown_approval_id_politely_refused(mail_agent):
+    agent, registry = mail_agent
+    agent.handle("email the report to my boss")
+    other = Agent(Settings(), registry=registry, session_id="telegram-42",
+                  llm=SensitiveLLM())
+    reply = other.handle("approve 99")
+    assert registry.executed == []
+    assert "no pending decision #99" in reply.lower()
+    assert approvals.pending("mail-test") is not None  # still parked
+
+
+def test_multiple_pending_asks_for_a_number(db):
+    registry = MailRegistry()
+    approvals.request("web-a", "send_email", {}, "send the invoice")
+    approvals.request("job-9", "run_shell", {"command": "rm -rf /tmp/z"},
+                      "run a destructive shell command")
+    agent = Agent(Settings(), registry=registry, session_id="telegram-42",
+                  llm=SensitiveLLM())
+    reply = agent.handle("approve")
+    assert registry.executed == []
+    assert "#" in reply and "approve <number>" in reply.lower()
+    # …and a numbered decision settles exactly one
+    invoice = next(p for p in approvals.list_pending()
+                   if "invoice" in p["summary"])
+    reply2 = agent.handle(f"approve {invoice['id']}")
+    assert registry.executed and registry.executed[0][0] == "send_email"
+    remaining = approvals.list_pending()
+    assert len(remaining) == 1 and "shell" in remaining[0]["summary"]

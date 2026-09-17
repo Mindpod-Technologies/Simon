@@ -279,12 +279,60 @@ class Agent:
                 existing_pending = approvals.pending(self.session_id)
             except Exception:  # pragma: no cover - never break a turn
                 existing_pending = None
-        if approvals_on and existing_pending:
-            decision = approvals.classify_reply(user_text)
+
+        # Cross-channel approval: nothing parked in THIS conversation, but
+        # the user replied with a decision word — the ask may have come from
+        # another surface (a background job, the web UI while they're on
+        # Telegram). One pending → decide it; several → ask for the number.
+        cross_target = None
+        if approvals_on and existing_pending is None:
+            decision, decision_id = approvals.classify_decision(user_text)
+            if decision:
+                try:
+                    others = approvals.list_pending()
+                except Exception:  # pragma: no cover - never break a turn
+                    others = []
+                if decision_id is not None:
+                    cross_target = next(
+                        (p for p in others if p["id"] == decision_id), None)
+                    if cross_target is None:
+                        reply = (f"I have no pending decision "
+                                 f"#{decision_id} on record, sir — it may "
+                                 f"have expired or already been settled.")
+                        memory.add_message(
+                            self.session_id, "assistant", reply)
+                        obs.record_event(
+                            "turn", interface=self.interface,
+                            session_id=self.session_id, model="(none)",
+                            route_reason="approval id unknown", latency_ms=0,
+                            tools=[], tool_errors=0, escalated=False,
+                            reply_len=len(reply), user_len=len(user_text))
+                        return reply
+                elif len(others) == 1:
+                    cross_target = others[0]
+                elif len(others) > 1:
+                    listing = "\n".join(
+                        f"  #{p['id']} — {p['summary'][:70]}"
+                        for p in others[:5])
+                    reply = (f"Several matters await your decision, sir:\n"
+                             f"{listing}\nReply **approve <number>** or "
+                             f"**reject <number>** to settle one.")
+                    memory.add_message(self.session_id, "assistant", reply)
+                    obs.record_event(
+                        "turn", interface=self.interface,
+                        session_id=self.session_id, model="(none)",
+                        route_reason="approval disambiguation", latency_ms=0,
+                        tools=[], tool_errors=0, escalated=False,
+                        reply_len=len(reply), user_len=len(user_text))
+                    return reply
+
+        target = existing_pending or cross_target
+        if approvals_on and target:
+            decision, _ = approvals.classify_decision(user_text)
             if decision == "reject":
-                approvals.resolve(existing_pending["id"], "rejected")
+                approvals.resolve(target["id"], "rejected")
                 reply = (f"Very well, sir — I've stood down on: "
-                         f"{existing_pending['summary']}. It shall not be "
+                         f"{target['summary']}. It shall not be "
                          f"done.")
                 memory.add_message(self.session_id, "assistant", reply)
                 obs.record_event(
@@ -295,23 +343,23 @@ class Agent:
                     reply_len=len(reply), user_len=len(user_text))
                 return reply
             if decision == "approve":
-                approvals.resolve(existing_pending["id"], "approved")
+                approvals.resolve(target["id"], "approved")
                 logger.info("approval granted — executing %s",
-                            existing_pending["tool"])
+                            target["tool"])
                 t0 = time.monotonic()
-                tools_used = [existing_pending["tool"]]
+                tools_used = [target["tool"]]
                 tool_errors = 0
                 artifact_markers: list[str] = []
                 try:
                     output = self.registry.call(
-                        existing_pending["tool"],
-                        approvals.decode_args(existing_pending))
+                        target["tool"],
+                        approvals.decode_args(target))
                     if str(output).startswith("Error"):
                         tool_errors = 1
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.exception("approved tool %s raised",
-                                     existing_pending["tool"])
-                    output = (f"Error: tool {existing_pending['tool']} "
+                                     target["tool"])
+                    output = (f"Error: tool {target['tool']} "
                               f"failed: {exc}")
                     tool_errors = 1
                 for marker in re.findall(r"\[artifact:([^\]\s]+)\]",
@@ -322,7 +370,7 @@ class Agent:
                     {"role": "user", "content": (
                         f"[System note: the user APPROVED the pending "
                         f"action. The system has executed "
-                        f"{existing_pending['tool']} FOR you — this is its "
+                        f"{target['tool']} FOR you — this is its "
                         f"real output. Confirm the result to the user from "
                         f"it; do not call more tools.\n\n{output}]")},
                 ]
@@ -334,10 +382,10 @@ class Agent:
                     reply = ""
                 if not reply:
                     reply = (f"Done, sir — as approved, I carried out: "
-                             f"{existing_pending['summary']}.\n\n{output}")
+                             f"{target['summary']}.\n\n{output}")
                 if self._looks_like_false_refusal(reply, user_text):
                     reply = (f"Done, sir — as approved, the raw output of "
-                             f"{existing_pending['tool']}:\n\n{output}")
+                             f"{target['tool']}:\n\n{output}")
                 missing = [p for p in artifact_markers if p not in reply]
                 if missing:
                     reply = reply.rstrip() + "\n" + "\n".join(
