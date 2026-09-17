@@ -93,7 +93,10 @@ def test_runner_executes_job_and_notifies(db):
     job = jobs.get_job(job_id, path=db)
     assert job["status"] == "done"
     assert job["result"] == "the finished report"
-    assert len(delivered) == 1 and "the finished report" in delivered[0]
+    # Two pushes: pickup ("On it…") then completion with the deliverable.
+    assert len(delivered) == 2
+    assert "picked up" in delivered[0].lower()
+    assert "the finished report" in delivered[1]
     assert runner.run_once() is False  # queue drained
 
 
@@ -107,7 +110,8 @@ def test_runner_marks_failed_job_and_carries_on(db):
     job = jobs.get_job(job_id, path=db)
     assert job["status"] == "failed"
     assert "boom" in job["error"]
-    assert "failed" in delivered[0].lower()
+    assert "picked up" in delivered[0].lower()   # pickup push
+    assert "failed" in delivered[-1].lower()     # failure push
 
 
 def test_runner_rejects_empty_result(db):

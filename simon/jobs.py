@@ -242,6 +242,8 @@ class JobRunner:
         job_id, description = job["id"], job["description"]
         logger.info("job %d started: %.80s", job_id, description)
         t0 = time.monotonic()
+        self.notify(f"On it, sir — picked up job #{job_id}: "
+                    f"«{description[:80]}». I'll report back when it's done.")
         try:
             if self.agent_factory is None:
                 raise RuntimeError("no agent_factory configured")

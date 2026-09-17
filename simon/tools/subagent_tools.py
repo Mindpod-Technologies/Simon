@@ -25,6 +25,15 @@ def get_manager(settings: Any = None, notify=None) -> Any:
         if _manager is None:
             from ..subagents import SubAgentManager
 
+            if notify is None and settings is not None:
+                # Default delivery: push sub-agent completions to the owner's
+                # Telegram so delegated work reports back on its own.
+                try:
+                    if getattr(settings, "telegram_bot_token", ""):
+                        from ..interfaces.telegram_bot import make_notify
+                        notify = make_notify(settings)
+                except Exception:  # noqa: BLE001 - never block creation
+                    log.exception("sub-agent notify setup failed")
             _manager = SubAgentManager(settings, notify=notify)
             log.info("sub-agent manager initialised")
         return _manager

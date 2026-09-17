@@ -491,7 +491,8 @@ class Agent:
                         # Sensitive action — park it and ask the owner
                         # instead of executing. "Autonomous, not unsupervised."
                         approvals.request(self.session_id, call["name"],
-                                          call["arguments"], needs)
+                                          call["arguments"], needs,
+                                          interface=self.interface)
                         reply = (
                             f"One moment, sir — this one needs your say-so: "
                             f"I'd like to **{needs}**. Reply **approve** and "

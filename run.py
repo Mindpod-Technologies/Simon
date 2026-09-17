@@ -110,6 +110,10 @@ async def _run_all() -> None:
     if settings.telegram_bot_token:
         from simon.interfaces.telegram_bot import make_notify
         telegram_notify = make_notify(settings)
+        # Approval asks raised in ANY session (including background jobs)
+        # are pushed to Telegram so nothing parks silently.
+        from simon import approvals
+        approvals.set_notifier(telegram_notify)
 
     scheduler = Scheduler(
         settings,

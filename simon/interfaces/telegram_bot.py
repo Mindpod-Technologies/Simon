@@ -127,6 +127,58 @@ async def _reply_with_voice(message, reply_text: str, settings) -> None:
                     pass
 
 
+def build_status_text() -> str:
+    """One-glance operational summary for /status — jobs, automations,
+    and anything parked awaiting the owner's approval."""
+    from simon import approvals, jobs, schedules
+
+    lines: list[str] = ["Simon status report, sir:"]
+
+    try:
+        running = jobs.list_jobs(limit=5, status="running")
+        queued = jobs.list_jobs(limit=5, status="pending")
+        done = jobs.list_jobs(limit=3, status="done")
+        failed = jobs.list_jobs(limit=3, status="failed")
+        if running or queued:
+            lines.append("\nBackground jobs:")
+            for j in running:
+                lines.append(f"  ▶ #{j['id']} running — {j['description'][:60]}")
+            for j in queued:
+                lines.append(f"  ⏳ #{j['id']} queued — {j['description'][:60]}")
+        else:
+            lines.append("\nBackground jobs: none running or queued.")
+        if done or failed:
+            recent = [f"#{j['id']} {j['status']}" for j in (done + failed)]
+            lines.append("  Recent: " + ", ".join(recent[:6]))
+    except Exception:  # noqa: BLE001 - status must never fail the command
+        log.exception("status: jobs section failed")
+
+    try:
+        active = schedules.list_schedules(active_only=True)
+        if active:
+            lines.append(f"\nAutomations ({len(active)} active):")
+            for s in active[:6]:
+                lines.append(f"  ⏱ #{s['id']} {s['description'][:50]}"
+                             f" — {schedules.describe(s)}")
+        else:
+            lines.append("\nAutomations: none scheduled.")
+    except Exception:  # noqa: BLE001
+        log.exception("status: schedules section failed")
+
+    try:
+        pend = approvals.list_pending()
+        if pend:
+            lines.append("\nAwaiting your approval:")
+            for p_ in pend[:5]:
+                where = p_.get("interface") or p_["session_id"]
+                lines.append(f"  ❗ {p_['summary'][:70]} (via {where}) — "
+                             "reply approve/reject in that conversation")
+    except Exception:  # noqa: BLE001
+        log.exception("status: approvals section failed")
+
+    return "\n".join(lines)
+
+
 def _build_app(settings) -> Application:
     """Build the PTB Application with all handlers registered."""
     state = _TelegramSimon(settings)
@@ -139,6 +191,21 @@ def _build_app(settings) -> Application:
             )
             return
         await update.message.reply_text(INTRO)
+
+    async def on_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        if not state.is_allowed(update):
+            log.warning(
+                "Refused /status from user %s",
+                update.effective_user.id if update.effective_user else "?",
+            )
+            return
+        try:
+            text = await asyncio.to_thread(build_status_text)
+        except Exception:  # noqa: BLE001
+            log.exception("status command failed")
+            await update.message.reply_text(APOLOGY)
+            return
+        await update.message.reply_text(text[:4000])
 
     async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not state.is_allowed(update):
@@ -196,6 +263,7 @@ def _build_app(settings) -> Application:
 
     app = Application.builder().token(settings.telegram_bot_token).build()
     app.add_handler(CommandHandler("start", on_start))
+    app.add_handler(CommandHandler("status", on_status))
     app.add_handler(
         MessageHandler(filters.VOICE | filters.AUDIO, on_voice)
     )
@@ -237,12 +305,12 @@ async def run_telegram_async(settings) -> None:
 def make_notify(settings) -> Callable[[str], None]:
     """Return a sync notify(text) that messages every allowlisted Telegram user.
 
-    Used by the scheduler to deliver briefings/reminders. Must be called from
-    a running event loop (AsyncIOScheduler guarantees this).
+    Used by the scheduler, JobRunner and sub-agent manager to deliver
+    briefings, progress and results. Thread-safe: the scheduler calls it on
+    the event loop (create_task), the JobRunner calls it from its worker
+    thread (fresh loop via asyncio.run) — neither drops the message.
     """
-    from telegram import Bot
-
-    bot = Bot(token=settings.telegram_bot_token)
+    token = settings.telegram_bot_token
     ids = [
         int(part.strip())
         for part in settings.telegram_allowed_user_ids.split(",")
@@ -251,13 +319,29 @@ def make_notify(settings) -> Callable[[str], None]:
     if not ids:
         log.warning("make_notify: no TELEGRAM_ALLOWED_USER_IDS; notifications dropped.")
 
+    async def _send_all(text: str) -> None:
+        from telegram import Bot
+        bot = Bot(token=token)
+        for uid in ids:
+            try:
+                await bot.send_message(chat_id=uid, text=text)
+            except Exception:  # noqa: BLE001 - one bad id must not drop the rest
+                log.exception("notify: send to %s failed", uid)
+
     def notify(text: str) -> None:
+        if not text or not ids:
+            return
+        text = text[:4000]  # Telegram message cap is 4096
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            log.warning("notify outside event loop; dropped: %s", text[:80])
-            return
-        for uid in ids:
-            loop.create_task(bot.send_message(chat_id=uid, text=text))
+            # Worker thread (JobRunner, sub-agents): no loop here — run a
+            # private one so the push actually leaves the machine.
+            try:
+                asyncio.run(_send_all(text))
+            except Exception:  # noqa: BLE001
+                log.exception("notify (threaded) failed: %s", text[:80])
+        else:
+            loop.create_task(_send_all(text))
 
     return notify

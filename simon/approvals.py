@@ -113,6 +113,33 @@ def classify_reply(text: str) -> Optional[str]:
 # Storage
 # ---------------------------------------------------------------------------
 
+# Optional push hook (Telegram notify) so approval asks raised by background
+# contexts — jobs, scheduled automations — actually reach the owner's pocket
+# instead of sitting silently in a session nobody is watching.
+_NOTIFIER = None
+
+
+def set_notifier(fn) -> None:
+    """Register a notify(text) callback fired when an approval is requested."""
+    global _NOTIFIER
+    _NOTIFIER = fn
+
+
+def list_pending(path: Optional[str] = None) -> list[dict]:
+    """All live pending requests, newest first (any session)."""
+    init_db(path)
+    conn = memory._connect(path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM approvals WHERE status = 'pending'"
+            " AND created_at >= datetime('now', ?)"
+            " ORDER BY id DESC",
+            (f"-{PENDING_TTL_MINUTES} minutes",)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
 def init_db(path: Optional[str] = None) -> None:
     conn = memory._connect(path)
     try:
@@ -123,8 +150,8 @@ def init_db(path: Optional[str] = None) -> None:
 
 
 def request(session_id: str, tool: str, args: dict, summary: str,
-            path: Optional[str] = None) -> int:
-    """Store a pending approval request and return its id."""
+            interface: str = "", path: Optional[str] = None) -> int:
+    """Store a pending approval request, push it to the owner, return its id."""
     init_db(path)
     # One pending request per session at a time — a newer request supersedes.
     conn = memory._connect(path)
@@ -137,9 +164,19 @@ def request(session_id: str, tool: str, args: dict, summary: str,
             " VALUES (?, ?, ?, ?)",
             (session_id, tool, json.dumps(args or {}), summary))
         conn.commit()
-        return int(cur.lastrowid)
+        approval_id = int(cur.lastrowid)
     finally:
         conn.close()
+    if _NOTIFIER is not None:
+        try:
+            where = interface or session_id
+            _NOTIFIER(
+                f"Approval needed, sir (via {where}): I'd like to "
+                f"{summary}. Reply **approve** or **reject** in that "
+                f"conversation and I'll proceed accordingly.")
+        except Exception:  # noqa: BLE001 - a failed push must not lose the ask
+            logger.exception("approval notifier failed")
+    return approval_id
 
 
 def pending(session_id: str, path: Optional[str] = None) -> Optional[dict]:
