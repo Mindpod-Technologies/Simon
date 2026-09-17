@@ -22,6 +22,8 @@ notes are directional — it is a moving target, so we benchmark the *category*
 | Voice in/out | 🟡 | 🟡 | ✅ (`voice/`, voice CLI, TTS to Slack) |
 | Sub-agents / delegated dev work | ✅ (Agent Teams) | ✅ | ✅ (`subagents.py`, `dev_delegate.py` → Claude/Codex) |
 | Proactive behavior (morning briefing, reminders, mail triage) | ✅ | ✅ | ✅ (`scheduler.py`: briefing, reminders, 5-min mail check) |
+| Approval gate — asks before anything irreversible ("autonomous, not unsupervised") | ✅ (its signature feature) | ✅ | ✅ (`approvals.py`: send_email, destructive shell, smart-home, MCP mutations park until owner replies approve/reject; works on every channel, survives restarts) |
+| Pushes back instead of blindly obeying | ✅ | 🟡 | 🟡 (persona-level; approval gate catches the irreversible cases deterministically) |
 | Model routing (fast/smart/frontier) | ⬜ (fixed models) | ⬜ | ✅ (qwen3:8b fast / gpt-oss:20b smart / K3 frontier) |
 | Runs fully local / offline-capable | ⬜ (cloud) | 🟡 (local runtime, cloud model) | ✅ (Ollama; cloud models optional) |
 

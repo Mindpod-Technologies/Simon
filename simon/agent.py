@@ -266,12 +266,101 @@ class Agent:
             except Exception:  # pragma: no cover - never break a turn
                 pass
 
+        # Approval gate ("autonomous, not unsupervised"): a previous turn may
+        # have parked a sensitive action awaiting the owner's decision.
+        # "approve" executes the stored call for real; "reject" cancels it;
+        # anything else is treated as a new turn, with a reminder appended.
+        from . import approvals
+        approvals_on = getattr(
+            getattr(self, "settings", None), "simon_approvals_enabled", True)
+        existing_pending = None
+        if approvals_on:
+            try:
+                existing_pending = approvals.pending(self.session_id)
+            except Exception:  # pragma: no cover - never break a turn
+                existing_pending = None
+        if approvals_on and existing_pending:
+            decision = approvals.classify_reply(user_text)
+            if decision == "reject":
+                approvals.resolve(existing_pending["id"], "rejected")
+                reply = (f"Very well, sir — I've stood down on: "
+                         f"{existing_pending['summary']}. It shall not be "
+                         f"done.")
+                memory.add_message(self.session_id, "assistant", reply)
+                obs.record_event(
+                    "turn", interface=self.interface,
+                    session_id=self.session_id, model="(none)",
+                    route_reason="approval rejected", latency_ms=0,
+                    tools=[], tool_errors=0, escalated=False,
+                    reply_len=len(reply), user_len=len(user_text))
+                return reply
+            if decision == "approve":
+                approvals.resolve(existing_pending["id"], "approved")
+                logger.info("approval granted — executing %s",
+                            existing_pending["tool"])
+                t0 = time.monotonic()
+                tools_used = [existing_pending["tool"]]
+                tool_errors = 0
+                artifact_markers: list[str] = []
+                try:
+                    output = self.registry.call(
+                        existing_pending["tool"],
+                        approvals.decode_args(existing_pending))
+                    if str(output).startswith("Error"):
+                        tool_errors = 1
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("approved tool %s raised",
+                                     existing_pending["tool"])
+                    output = (f"Error: tool {existing_pending['tool']} "
+                              f"failed: {exc}")
+                    tool_errors = 1
+                for marker in re.findall(r"\[artifact:([^\]\s]+)\]",
+                                         str(output or "")):
+                    if marker not in artifact_markers:
+                        artifact_markers.append(marker)
+                ground_messages = messages + [
+                    {"role": "user", "content": (
+                        f"[System note: the user APPROVED the pending "
+                        f"action. The system has executed "
+                        f"{existing_pending['tool']} FOR you — this is its "
+                        f"real output. Confirm the result to the user from "
+                        f"it; do not call more tools.\n\n{output}]")},
+                ]
+                try:
+                    result = self.llm.chat(ground_messages)
+                    reply = (result.get("content") or "").strip()
+                except Exception:
+                    logger.exception("approval summary failed")
+                    reply = ""
+                if not reply:
+                    reply = (f"Done, sir — as approved, I carried out: "
+                             f"{existing_pending['summary']}.\n\n{output}")
+                if self._looks_like_false_refusal(reply, user_text):
+                    reply = (f"Done, sir — as approved, the raw output of "
+                             f"{existing_pending['tool']}:\n\n{output}")
+                missing = [p for p in artifact_markers if p not in reply]
+                if missing:
+                    reply = reply.rstrip() + "\n" + "\n".join(
+                        f"[artifact:{p}]" for p in missing)
+                memory.add_message(self.session_id, "assistant", reply)
+                obs.record_event(
+                    "turn", interface=self.interface,
+                    session_id=self.session_id,
+                    model=getattr(self.llm, "model", ""),
+                    route_reason="approved action executed",
+                    latency_ms=int((time.monotonic() - t0) * 1000),
+                    tools=tools_used, tool_errors=tool_errors,
+                    escalated=False, reply_len=len(reply),
+                    user_len=len(user_text))
+                return reply
+
         reply = ""
         tool_errors = 0
         tools_used: list[str] = []
         failed_calls: dict[str, int] = {}
         artifact_markers: list[str] = []
         escalated = False
+        approval_hold = False
         self.last_turn_exhausted = False
         t0 = time.monotonic()
 
@@ -284,6 +373,21 @@ class Agent:
                                      str(output or "")):
                 if marker not in artifact_markers:
                     artifact_markers.append(marker)
+
+        def _guarded_call(name, args):
+            """Execute a tool from a rescue/nudge path, unless it needs owner
+            approval — sensitive actions may only run through the main loop's
+            approval ask (or an explicit 'approve'), never via a nudge."""
+            if approvals_on:
+                try:
+                    if approvals.assess(name, args):
+                        return ("Error: this action is sensitive and needs "
+                                "the owner's approval. Do NOT attempt it here "
+                                "— end your turn by asking the user to "
+                                "confirm it directly.")
+                except Exception:  # pragma: no cover - never break a turn
+                    pass
+            return self.registry.call(name, args)
 
         # Deterministic explicit-tool execution: "use the list_files tool on
         # /path" runs the tool directly and has the model summarise the real
@@ -377,6 +481,26 @@ class Agent:
             # Execute each tool call; registry.call never raises, but guard
             # anyway so a misbehaving registry cannot kill the loop.
             for call in tool_calls:
+                if approvals_on:
+                    try:
+                        needs = approvals.assess(call["name"],
+                                                 call["arguments"])
+                    except Exception:  # pragma: no cover - never break a turn
+                        needs = None
+                    if needs:
+                        # Sensitive action — park it and ask the owner
+                        # instead of executing. "Autonomous, not unsupervised."
+                        approvals.request(self.session_id, call["name"],
+                                          call["arguments"], needs)
+                        reply = (
+                            f"One moment, sir — this one needs your say-so: "
+                            f"I'd like to **{needs}**. Reply **approve** and "
+                            f"I shall do it at once, or **reject** and I'll "
+                            f"stand down.")
+                        approval_hold = True
+                        logger.info("approval requested for %s",
+                                    call["name"])
+                        break
                 tools_used.append(call["name"])
                 signature = call["name"] + json.dumps(call["arguments"],
                                                       sort_keys=True)
@@ -408,6 +532,11 @@ class Agent:
                     "tool_call_id": call["id"],
                     "content": str(output),
                 })
+
+            if approval_hold:
+                # A sensitive call was parked for owner approval — end the
+                # turn here; the reply already asks approve/reject.
+                break
 
             # Escalation: the fast brain is fumbling its tool calls — switch
             # to the smart model for the rest of this turn.
@@ -452,7 +581,11 @@ class Agent:
         # the grounding.
         regenerated = False
         _FETCH_TOOLS = {"fetch_url", "browser_goto", "web_search"}
-        if not _FETCH_TOOLS.intersection(tools_used):
+        if approval_hold:
+            # A sensitive action is parked awaiting the owner's decision —
+            # the reply IS the approval ask; no grounding or rescue passes.
+            pass
+        elif not _FETCH_TOOLS.intersection(tools_used):
             url = self._extract_url(user_text)
             if url and "fetch_url" in self.registry:
                 logger.info("URL in user message but no fetch — grounding "
@@ -487,13 +620,13 @@ class Agent:
         # so the user's request genuinely happens. Runs BEFORE the
         # claimed-action guard: a written call is an intent we can fulfil
         # directly, no nudging required.
-        if not tools_used:
+        if not approval_hold and not tools_used:
             pseudo = self._extract_pseudo_call(reply)
             if pseudo is not None:
                 pname, pargs = pseudo
                 logger.warning("pseudo-tool-call in reply text — executing "
                                "%s for real", pname)
-                poutput = self.registry.call(pname, pargs)
+                poutput = _guarded_call(pname, pargs)
                 _collect_artifact_markers(poutput)
                 tools_used.append(pname)
                 regenerated = True
@@ -527,7 +660,8 @@ class Agent:
         # If the final reply looks dishonest and no tool ran this turn,
         # retry with an explicit correction nudge, re-nudging while the
         # model keeps narrating instead of calling tools.
-        if not tools_used and self._looks_dishonest(reply):
+        if (not approval_hold and not tools_used
+                and self._looks_dishonest(reply)):
             logger.warning("claimed-action reply without tool call — nudging")
             nudge_messages = messages + [
                 {"role": "assistant", "content": reply},
@@ -592,8 +726,8 @@ class Agent:
                         executed += 1
                         tools_used.append(call["name"])
                         try:
-                            output = self.registry.call(call["name"],
-                                                        call["arguments"])
+                            output = _guarded_call(call["name"],
+                                                   call["arguments"])
                             _collect_artifact_markers(output)
                         except Exception as exc:  # pragma: no cover
                             output = f"Error: tool {call['name']} failed: {exc}"
@@ -621,7 +755,7 @@ class Agent:
         # on your machine") without ever calling anything. When the request
         # shows file/tool intent, nudge it to actually use the tool — the
         # owner explicitly authorized the allowed directories.
-        if (not tools_used
+        if (not approval_hold and not tools_used
                 and self._looks_like_false_refusal(reply, user_text)):
             logger.warning("false refusal without tool call — nudging")
             refusal_messages = messages + [
@@ -662,8 +796,8 @@ class Agent:
                     for c in nudge_calls[:3]:
                         tools_used.append(c["name"])
                         try:
-                            output = self.registry.call(c["name"],
-                                                        c["arguments"])
+                            output = _guarded_call(c["name"],
+                                                   c["arguments"])
                             _collect_artifact_markers(output)
                         except Exception:  # pragma: no cover - defensive
                             output = f"Error: tool {c['name']} failed"
@@ -676,7 +810,7 @@ class Agent:
             except Exception:
                 logger.exception("false-refusal nudge failed")
 
-        if not tools_used and self._looks_cut_off(reply):
+        if not approval_hold and not tools_used and self._looks_cut_off(reply):
             logger.warning("degenerate reply (%d chars) — regenerating once",
                            len(reply.strip()))
             retry_messages = messages + [
@@ -718,6 +852,20 @@ class Agent:
                     f"[artifact:{p}]" for p in missing)
         except Exception:  # pragma: no cover - never break a turn
             pass
+
+        # If a sensitive action is still parked from an earlier turn and the
+        # user moved on to something else, keep it visible with a one-line
+        # reminder rather than letting it silently rot.
+        if approvals_on and existing_pending and not approval_hold:
+            try:
+                still = approvals.pending(self.session_id)
+            except Exception:  # pragma: no cover - never break a turn
+                still = None
+            if still:
+                reply = (reply.rstrip() +
+                         f"\n\n*(Still awaiting your decision, sir: "
+                         f"{still['summary']} — reply **approve** or "
+                         f"**reject**.)*")
 
         memory.add_message(self.session_id, "assistant", reply)
         obs.record_event(

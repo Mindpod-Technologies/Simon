@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     # Background jobs (long-running assignments executed by the JobRunner)
     simon_jobs_enabled: bool = True
 
+    # Approval gate ("autonomous, not unsupervised"): irreversible or
+    # externally visible actions (send_email, destructive shell commands,
+    # smart-home calls, MCP mutations like git push) pause and wait for the
+    # owner to reply "approve" / "reject" before executing.
+    simon_approvals_enabled: bool = True
+
     # MCP client (connect to Model Context Protocol servers listed in a
     # Claude-Desktop-style mcp.json; their tools appear as mcp_<server>_<tool>)
     simon_mcp_enabled: bool = True
