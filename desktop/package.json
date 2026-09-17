@@ -1,6 +1,6 @@
 {
   "name": "simon-work-desktop",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Simon Work — your self-hosted AI employee (desktop shell)",
   "main": "main.js",
   "author": "Mindpod Technologies",

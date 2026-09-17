@@ -11,7 +11,7 @@
 // it rather than quitting (an employee who stops when you look away is not
 // an employee).
 
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog, Notification, globalShortcut } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -264,19 +264,175 @@ function createTray() {
   const img = nativeImage.createFromPath(path.join(__dirname, 'icon.png')).resize({ width: 18, height: 18 });
   tray = new Tray(img);
   tray.setToolTip('Simon Work');
-  tray.setContextMenu(Menu.buildFromTemplate([
+  tray.on('click', () => { if (mainWindow) mainWindow.show(); });
+  renderTrayMenu({ signedOut: true });
+  startStatusPolling();
+}
+
+// --- Live menu-bar presence ------------------------------------------------
+// Polls the backend with the app's own session cookie and keeps the tray
+// honest: running jobs, anything awaiting approval, desktop notifications
+// when something finishes or needs the owner. This is what makes the
+// desktop edition feel alive instead of being a browser tab in a window.
+
+const STATUS_URL = 'http://localhost:8788';
+let lastJobStates = {};   // id -> status, to detect transitions
+let seenApprovals = new Set();
+let latestStatus = { signedOut: true };
+
+async function sessionCookie() {
+  try {
+    const cookies = await require('electron').session.defaultSession
+      .cookies.get({ url: STATUS_URL });
+    return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+  } catch (_) { return ''; }
+}
+
+function getJSON(pathname, cookie) {
+  return new Promise((resolve) => {
+    const req = http.get(STATUS_URL + pathname, { headers: { Cookie: cookie } }, (res) => {
+      if (res.statusCode !== 200) { res.resume(); return resolve(null); }
+      let body = '';
+      res.on('data', (d) => { body += d; });
+      res.on('end', () => { try { resolve(JSON.parse(body)); } catch (_) { resolve(null); } });
+    });
+    req.setTimeout(4000, () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+  });
+}
+
+async function pollStatus() {
+  if (!(await healthy(SIMON_URL))) {
+    latestStatus = { down: true };
+    renderTrayMenu(latestStatus);
+    return;
+  }
+  const cookie = await sessionCookie();
+  const [jobs, approvals] = await Promise.all([
+    getJSON('/api/jobs', cookie),
+    getJSON('/api/approvals', cookie),
+  ]);
+  if (jobs === null && approvals === null) {
+    latestStatus = { signedOut: true };
+    renderTrayMenu(latestStatus);
+    return;
+  }
+  const running = (jobs && jobs.jobs ? jobs.jobs : []).filter((j) => j.status === 'running');
+  const recent = (jobs && jobs.jobs ? jobs.jobs : []);
+  const pending = (approvals && approvals.pending) || [];
+
+  // Notify on job transitions to done/failed (only ones we've seen running).
+  recent.forEach((j) => {
+    const prev = lastJobStates[j.id];
+    if (prev === 'running' && (j.status === 'done' || j.status === 'failed')) {
+      notifyDesktop(
+        j.status === 'done' ? `Job #${j.id} complete` : `Job #${j.id} failed`,
+        (j.description || '').slice(0, 100));
+    }
+    lastJobStates[j.id] = j.status;
+  });
+  // Notify on NEW pending approvals.
+  pending.forEach((p) => {
+    if (!seenApprovals.has(p.id)) {
+      seenApprovals.add(p.id);
+      if (seenApprovals.size > 0 && lastJobStates.__primed) {
+        notifyDesktop('Simon needs your approval', p.summary.slice(0, 120));
+      }
+    }
+  });
+  // First poll primes state without a notification storm.
+  lastJobStates.__primed = true;
+
+  latestStatus = { running, pending };
+  renderTrayMenu(latestStatus);
+}
+
+function notifyDesktop(title, body) {
+  try {
+    const n = new Notification({ title: `Simon — ${title}`, body });
+    n.on('click', () => { if (mainWindow) mainWindow.show(); });
+    n.show();
+  } catch (_) { /* notifications best-effort */ }
+}
+
+function renderTrayMenu(status) {
+  if (!tray) return;
+  const items = [];
+  let title = '';
+  if (status.down) {
+    items.push({ label: 'Simon is offline — click to retry', click: () => pollStatus() });
+    title = ' ○';
+  } else if (status.signedOut) {
+    items.push({ label: 'Open Simon Work to sign in for live status', enabled: false });
+  } else {
+    const running = status.running || [];
+    const pending = status.pending || [];
+    if (running.length) {
+      title = ' ●';
+      running.slice(0, 3).forEach((j) => items.push({
+        label: `▶ #${j.id} ${String(j.description || '').slice(0, 40)}`,
+        enabled: false,
+      }));
+    } else {
+      items.push({ label: 'No jobs running', enabled: false });
+    }
+    if (pending.length) {
+      title = ' ❗';
+      items.push({ type: 'separator' });
+      pending.slice(0, 3).forEach((p) => items.push({
+        label: `❗ ${String(p.summary || '').slice(0, 50)}`,
+        click: () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } },
+      }));
+    }
+  }
+  tray.setTitle(title);
+  items.push(
+    { type: 'separator' },
+    { label: 'Quick Ask   ⌥Space', click: () => toggleQuickAsk() },
     { label: 'Open Simon', click: () => { if (mainWindow) { mainWindow.show(); } else { createWindow(); } } },
     { label: 'Monitoring portal', click: () => shell.openExternal('http://localhost:8789/') },
     { type: 'separator' },
     { label: 'Quit Simon Work', click: () => { quitting = true; app.quit(); } },
-  ]));
-  tray.on('click', () => { if (mainWindow) mainWindow.show(); });
+  );
+  tray.setContextMenu(Menu.buildFromTemplate(items));
+}
+
+let statusTimer = null;
+function startStatusPolling() {
+  if (statusTimer) return;
+  statusTimer = setInterval(pollStatus, 30000);
+  setTimeout(pollStatus, 5000);  // first poll shortly after launch
+}
+
+// --- Quick Ask popup --------------------------------------------------------
+
+let quickAsk = null;
+function toggleQuickAsk() {
+  if (quickAsk && !quickAsk.isDestroyed()) {
+    if (quickAsk.isVisible()) { quickAsk.hide(); return; }
+    quickAsk.show(); quickAsk.focus(); return;
+  }
+  quickAsk = new BrowserWindow({
+    width: 420, height: 380,
+    frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
+    backgroundColor: '#0b1116',
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+  quickAsk.on('blur', () => { if (quickAsk && !quickAsk.isDestroyed()) quickAsk.hide(); });
+  quickAsk.loadURL(STATUS_URL + '/quickask');
+  quickAsk.on('closed', () => { quickAsk = null; });
 }
 
 app.whenReady().then(() => {
   createWindow();
   createTray();
+  globalShortcut.register('Alt+Space', () => toggleQuickAsk());
   app.on('activate', () => { if (mainWindow) mainWindow.show(); });
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  if (statusTimer) clearInterval(statusTimer);
 });
 
 app.on('before-quit', () => {

@@ -84,3 +84,24 @@ def test_plugins_endpoint_requires_auth(tmp_path, monkeypatch):
             return supplied
 
     assert TestClient(create_app(S())).get("/api/plugins").status_code == 401
+
+
+def test_approvals_endpoint_lists_pending(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    from simon import approvals
+    approvals.request("web-x", "send_email", {}, "send an email to a@b.c")
+    r = client.get("/api/approvals")
+    assert r.status_code == 200
+    pending = r.json()["pending"]
+    assert len(pending) == 1
+    assert pending[0]["summary"] == "send an email to a@b.c"
+    assert pending[0]["session"] == "web-x"
+
+
+def test_approvals_endpoint_empty(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    r = client.get("/api/approvals")
+    assert r.status_code == 200
+    assert r.json() == {"pending": []}

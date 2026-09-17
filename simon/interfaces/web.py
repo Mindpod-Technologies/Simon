@@ -92,6 +92,11 @@ def create_app(settings) -> FastAPI:
     async def login_page():
         return FileResponse(STATIC_DIR / "login.html")
 
+    @app.get("/quickask")
+    async def quickask_page():
+        """Compact ask-anything page — loaded by the desktop tray popup."""
+        return FileResponse(STATIC_DIR / "quickask.html")
+
     @app.post("/api/login")
     async def login(req: LoginRequest):
         from fastapi.responses import Response
@@ -370,6 +375,16 @@ def create_app(settings) -> FastAPI:
                         for n, t in sorted(LOADED_PLUGINS.items())],
             "mcp_servers": mcp_names,
         }
+
+    @app.get("/api/approvals")
+    async def approvals_status():
+        """Pending sensitive-action approvals awaiting the owner's decision —
+        the desktop tray polls this for its ❗ badge and alerts."""
+        from simon import approvals
+        return {"pending": [
+            {"id": p["id"], "summary": p["summary"],
+             "session": p["session_id"], "created_at": p["created_at"]}
+            for p in approvals.list_pending()]}
 
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quick Ask — Simon</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "SF Pro Text", sans-serif;
+    background: #0b1116; color: #d7e3ea;
+    padding: 12px; height: 100vh; display: flex; flex-direction: column;
+    border: 1px solid #16232b; border-radius: 10px; overflow: hidden;
+  }
+  #reply {
+    flex: 1; overflow-y: auto; font-size: 13px; line-height: 1.45;
+    white-space: pre-wrap; word-wrap: break-word; margin-bottom: 10px;
+  }
+  #reply .you { color: #3fc6c9; font-weight: 600; margin-top: 8px; }
+  #reply .simon { margin-bottom: 4px; }
+  #reply .hint { color: #5b7180; font-size: 12px; }
+  #row { display: flex; gap: 8px; }
+  #q {
+    flex: 1; background: #101a21; border: 1px solid #16232b;
+    border-radius: 8px; color: #d7e3ea; padding: 8px 10px;
+    font-size: 13px; outline: none;
+  }
+  #q:focus { border-color: rgba(63,198,201,0.45); }
+  #go {
+    background: #16494c; color: #d7e3ea; border: 1px solid #1d5f63;
+    border-radius: 8px; padding: 0 14px; font-size: 13px; cursor: pointer;
+  }
+  #go:disabled { opacity: 0.4; cursor: default; }
+</style>
+</head>
+<body>
+  <div id="reply"><div class="hint">Ask Simon anything — he answers here. Esc closes.</div></div>
+  <div id="row">
+    <input id="q" placeholder="Quick ask…" autofocus>
+    <button id="go">Ask</button>
+  </div>
+<script>
+(function () {
+  var q = document.getElementById("q");
+  var go = document.getElementById("go");
+  var reply = document.getElementById("reply");
+  var sessionId = null;
+  var busy = false;
+
+  function addLine(cls, text) {
+    var div = document.createElement("div");
+    div.className = cls;
+    div.textContent = text;
+    reply.appendChild(div);
+    reply.scrollTop = reply.scrollHeight;
+    return div;
+  }
+
+  function ask() {
+    var text = q.value.trim();
+    if (!text || busy) return;
+    busy = true; go.disabled = true;
+    addLine("you", "» " + text);
+    q.value = "";
+    var out = addLine("simon", "…");
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionId
+        ? { text: text, session_id: sessionId } : { text: text })
+    }).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buf = "", acc = "";
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) { finish(); return; }
+          buf += decoder.decode(r.value, { stream: true });
+          var parts = buf.split("\n\n");
+          buf = parts.pop();
+          parts.forEach(function (block) {
+            var ev = null, data = "";
+            block.split("\n").forEach(function (line) {
+              if (line.startsWith("event:")) ev = line.slice(6).trim();
+              if (line.startsWith("data:")) data += line.slice(5).trim();
+            });
+            if (ev === "chunk") { acc += (acc ? " " : "") + data; out.textContent = acc; }
+            if (ev === "done" && !acc) out.textContent = data;
+            if (ev === "session") sessionId = data;
+          });
+          reply.scrollTop = reply.scrollHeight;
+          return pump();
+        });
+      }
+      function finish() { busy = false; go.disabled = false; q.focus(); }
+      return pump().catch(function () {
+        out.textContent = "(connection dropped — try again)"; finish();
+      });
+    }).catch(function (e) {
+      out.textContent = "(unreachable: " + e.message + " — is Simon on?)";
+      busy = false; go.disabled = false;
+    });
+  }
+
+  go.addEventListener("click", ask);
+  q.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") ask();
+    if (e.key === "Escape") window.close();
+  });
+})();
+</script>
+</body>
+</html>
