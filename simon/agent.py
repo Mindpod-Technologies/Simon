@@ -1098,6 +1098,19 @@ class Agent:
             mailbox=getattr(self.settings, "simon_mailbox", "")
                     or "(not configured)",
         )
+        # Per-person profile: family/team members are addressed by name and
+        # their facts attributed to them; no profile = the owner ("sir").
+        try:
+            from . import profiles
+            name = profiles.display_name(self.session_id)
+        except Exception:  # pragma: no cover - never break a turn
+            name = ""
+        if name:
+            system_prompt += (
+                f"\n\nYou are speaking with {name} (not the owner). Address "
+                f"{name} by name. When you store facts for them, prefix the "
+                f"key with their name (e.g. \"{name}'s shoe size\") so their "
+                f"preferences never merge with the owner's.")
         # Deterministic recall: surface relevant remembered facts directly in
         # the system prompt so the model need not rely on calling a tool.
         try:

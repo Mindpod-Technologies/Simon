@@ -386,6 +386,34 @@ def create_app(settings) -> FastAPI:
              "session": p["session_id"], "created_at": p["created_at"]}
             for p in approvals.list_pending()]}
 
+    @app.get("/api/profiles")
+    async def profiles_list():
+        """Known per-person profiles (session → display name)."""
+        from simon import memory as _m, profiles as _p
+        _p.init_db()
+        conn = _m._connect()
+        try:
+            rows = conn.execute(
+                "SELECT session_id, name, form, updated_at FROM profiles"
+                " ORDER BY updated_at DESC").fetchall()
+            return {"profiles": [dict(r) for r in rows]}
+        finally:
+            conn.close()
+
+    @app.post("/api/profiles")
+    async def profiles_set(request: Request):
+        """Set a display name for a session, e.g. name the wife's chat."""
+        from simon import profiles as _p
+        body = await request.json()
+        session = str(body.get("session", "")).strip()
+        name = str(body.get("name", "")).strip()
+        form = str(body.get("form", "")).strip()
+        if not session or not name:
+            return JSONResponse(
+                {"error": "session and name are required"}, status_code=400)
+        _p.set_profile(session, name, form)
+        return {"saved": {"session": session, "name": name, "form": form}}
+
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"
     )

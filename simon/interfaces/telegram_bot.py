@@ -179,6 +179,21 @@ def build_status_text() -> str:
     return "\n".join(lines)
 
 
+def _capture_profile(update: "Update", settings) -> None:
+    """Learn the speaker's display name from Telegram on first contact so
+    Simon can address family members properly. Never overwrites a chosen name."""
+    try:
+        user = update.effective_user
+        chat = update.effective_chat
+        if not user or not chat or not user.first_name:
+            return
+        from simon import profiles
+        session = settings.canonical_session("telegram", str(chat.id))
+        profiles.ensure_name(session, user.first_name)
+    except Exception:  # noqa: BLE001 - profiling must never break a turn
+        log.exception("profile auto-capture failed")
+
+
 def _build_app(settings) -> Application:
     """Build the PTB Application with all handlers registered."""
     state = _TelegramSimon(settings)
@@ -215,6 +230,7 @@ def _build_app(settings) -> Application:
             )
             return
         chat_id = update.effective_chat.id
+        _capture_profile(update, settings)
         try:
             agent = state.agent_for(chat_id)
             reply = agent.handle(update.message.text)
@@ -232,6 +248,7 @@ def _build_app(settings) -> Application:
             )
             return
         chat_id = update.effective_chat.id
+        _capture_profile(update, settings)
         voice = update.message.voice or update.message.audio
         if voice is None:
             return
