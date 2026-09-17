@@ -143,6 +143,11 @@ class Settings(BaseSettings):
     # canonical session so a person's conversation follows them across
     # Slack / Telegram / web. Format: "slack:U123=owner,telegram:456=owner".
     simon_identity_map: str = ""
+    # Who receives operational pushes (mail watch, job notices, approvals,
+    # briefings). Empty = derive from the identity map's telegram:*=owner
+    # entry; if that is absent too, broadcasts to every allowlisted user.
+    # Family members should NOT get the owner's operational notifications.
+    telegram_owner_user_id: str = ""
     # The web UI has no login; anonymous browser visitors land on this session
     # (e.g. "owner" to unify the browser with the owner's Slack DM).
     simon_web_default_session: str = ""

@@ -114,3 +114,35 @@ def test_status_text_empty_system(tmp_path, monkeypatch):
     text = telegram_bot.build_status_text()
     assert "none running or queued" in text
     assert "none scheduled" in text
+
+
+# ---------------------------------------------------------------------------
+# Owner-scoped recipients (the "bleed" regression guard)
+# ---------------------------------------------------------------------------
+
+def test_recipients_broadcast_when_unconfigured():
+    s = Settings(telegram_bot_token="t", telegram_allowed_user_ids="111,222")
+    assert telegram_bot.notify_recipients(s) == [111, 222]
+
+
+def test_recipients_owner_from_identity_map():
+    s = Settings(telegram_bot_token="t", telegram_allowed_user_ids="111,222",
+                 simon_identity_map="slack:U1=owner,telegram:111=owner")
+    assert telegram_bot.notify_recipients(s) == [111]
+
+
+def test_recipients_explicit_owner_wins():
+    s = Settings(telegram_bot_token="t", telegram_allowed_user_ids="111,222",
+                 simon_identity_map="telegram:111=owner",
+                 telegram_owner_user_id="222")
+    assert telegram_bot.notify_recipients(s) == [222]
+
+
+def test_notify_only_reaches_owner(monkeypatch):
+    monkeypatch.setattr("telegram.Bot", FakeBot)
+    FakeBot.sent = []
+    s = Settings(telegram_bot_token="fake-token",
+                 telegram_allowed_user_ids="111,222",
+                 simon_identity_map="telegram:111=owner")
+    telegram_bot.make_notify(s)("private operational notice")
+    assert [cid for cid, _ in FakeBot.sent] == [111]

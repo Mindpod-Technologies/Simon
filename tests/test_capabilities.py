@@ -111,3 +111,44 @@ def test_agent_does_not_intercept_task_requests(tmp_path, monkeypatch):
     reply = agent.handle("can you do the weekly report now")
     assert llm.calls >= 1                        # normal path taken
     assert reply == "model answer"
+
+
+class _RouterLLM(_CountingLLM):
+    """Routes everything to the fast model; records the model actually used."""
+
+    def __init__(self):
+        super().__init__()
+        self.models_used = []
+
+    def route_model(self, *a, **k):
+        return self.model_fast
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        self.models_used.append(model)
+        return {"content": "model answer", "tool_calls": []}
+
+
+def _router_agent(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "s.db"))
+    llm = _RouterLLM()
+    return Agent(Settings(), registry=_Registry(), session_id="rt",
+                 interface="test", llm=llm), llm
+
+
+def test_explicit_search_request_escalates_off_fast(tmp_path, monkeypatch):
+    agent, llm = _router_agent(tmp_path, monkeypatch)
+    agent.handle("Can you do a web search for that organizing app?")
+    assert llm.models_used and llm.models_used[0] == "smart"
+
+
+def test_look_it_up_escalates_off_fast(tmp_path, monkeypatch):
+    agent, llm = _router_agent(tmp_path, monkeypatch)
+    agent.handle("Look it up online for me please")
+    assert llm.models_used[0] == "smart"
+
+
+def test_plain_chat_stays_fast(tmp_path, monkeypatch):
+    agent, llm = _router_agent(tmp_path, monkeypatch)
+    agent.handle("What time is it roughly in Tokyo?")
+    assert llm.models_used[0] == "fast"

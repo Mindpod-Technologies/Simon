@@ -302,8 +302,30 @@ async def run_telegram_async(settings) -> None:
             await app.stop()
 
 
+def notify_recipients(settings) -> list[int]:
+    """Who gets operational pushes. Owner-scoped: the explicit
+    telegram_owner_user_id, else the identity map's telegram:*=owner entry,
+    else (backward compat) every allowlisted user."""
+    owner = (getattr(settings, "telegram_owner_user_id", "") or "").strip()
+    if not owner:
+        for part in (getattr(settings, "simon_identity_map", "") or "").split(","):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                if (v.strip() == "owner"
+                        and k.strip().lower().startswith("telegram:")):
+                    owner = k.strip().split(":", 1)[1]
+                    break
+    if owner.lstrip("-").isdigit():
+        return [int(owner)]
+    return [
+        int(part.strip())
+        for part in settings.telegram_allowed_user_ids.split(",")
+        if part.strip().lstrip("-").isdigit()
+    ]
+
+
 def make_notify(settings) -> Callable[[str], None]:
-    """Return a sync notify(text) that messages every allowlisted Telegram user.
+    """Return a sync notify(text) that messages the owner's Telegram user.
 
     Used by the scheduler, JobRunner and sub-agent manager to deliver
     briefings, progress and results. Thread-safe: the scheduler calls it on
@@ -311,11 +333,7 @@ def make_notify(settings) -> Callable[[str], None]:
     thread (fresh loop via asyncio.run) — neither drops the message.
     """
     token = settings.telegram_bot_token
-    ids = [
-        int(part.strip())
-        for part in settings.telegram_allowed_user_ids.split(",")
-        if part.strip().lstrip("-").isdigit()
-    ]
+    ids = notify_recipients(settings)
     if not ids:
         log.warning("make_notify: no TELEGRAM_ALLOWED_USER_IDS; notifications dropped.")
 

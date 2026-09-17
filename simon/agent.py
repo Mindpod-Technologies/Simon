@@ -265,6 +265,17 @@ class Agent:
                     self.llm.last_route_reason = "named tool"
             except Exception:  # pragma: no cover - never break a turn
                 pass
+            # Explicit research intent ("do a web search", "look it up")
+            # needs tools too — the fast tier would otherwise claim it
+            # "cannot search" and then fabricate an answer from thin air.
+            if (model is not None
+                    and model == getattr(self.llm, "model_fast", None)
+                    and re.search(
+                        r"\b(web[ -]?search|search the (web|internet)|"
+                        r"google (it|for|that)|look (it|that|this|her|him)"
+                        r"\s?up|look up)\b", low_text)):
+                model = self.llm.model
+                self.llm.last_route_reason = "explicit search request"
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
