@@ -156,7 +156,10 @@ def create_app(settings) -> FastAPI:
 
     @app.get("/")
     async def index():
-        return FileResponse(STATIC_DIR / "index.html")
+        # no-cache: Electron's HTTP cache otherwise pins the shell (and its
+        # versioned asset references) across app updates.
+        return FileResponse(STATIC_DIR / "index.html",
+                            headers={"Cache-Control": "no-cache"})
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest, request: Request):

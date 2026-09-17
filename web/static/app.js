@@ -535,7 +535,7 @@
           return m.role === "user" || m.role === "assistant";
         });
         if (!msgs.length) {
-          addMsg("Simon", "Good day, sir. Simon online and at your service.");
+          systemMsg("Simon online and at your service, sir.");
           return;
         }
         msgs.slice(-30).forEach(function (m) {
@@ -544,7 +544,7 @@
         });
       })
       .catch(function () {
-        addMsg("Simon", "Good day, sir. Simon online and at your service.");
+        systemMsg("Simon online and at your service, sir.");
       });
   }
 
@@ -556,8 +556,34 @@
   });
 
   newTaskBtn.addEventListener("click", function () {
-    var name = window.prompt("Name the new task workspace:", "");
-    if (!name || !name.trim()) return;
+    // window.prompt is unsupported in Electron — use the inline modal.
+    var modal = document.getElementById("task-modal");
+    var nameInput = document.getElementById("task-name");
+    nameInput.value = "";
+    modal.classList.add("open");
+    nameInput.focus();
+  });
+  (function () {
+    var modal = document.getElementById("task-modal");
+    var nameInput = document.getElementById("task-name");
+    function close() { modal.classList.remove("open"); }
+    function submitTask() {
+      var name = nameInput.value.trim();
+      close();
+      if (!name) return;
+      createTask(name);
+    }
+    document.getElementById("task-cancel").addEventListener("click", close);
+    document.getElementById("task-create").addEventListener("click", submitTask);
+    nameInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") submitTask();
+      if (e.key === "Escape") close();
+    });
+    modal.addEventListener("click", function (e) {
+      if (e.target === modal) close();
+    });
+  })();
+  function createTask(name) {
     fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -576,7 +602,7 @@
           "\" ready — this conversation and its files are now scoped to it.");
       })
       .catch(function () { systemMsg("Task creation failed."); });
-  });
+  }
 
   /* ---- chat ---- */
 
