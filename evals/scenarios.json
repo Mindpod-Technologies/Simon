@@ -180,6 +180,22 @@
           "done, sir"
         ]
       }
+    },
+    {
+      "name": "automation-tour-is-a-tour-not-a-refusal",
+      "say": "explain some automations that you can do on my behalf?",
+      "expect": {
+        "reply_contains_any": [
+          "Automate",
+          "automations",
+          "At your service"
+        ],
+        "reply_not_contains": [
+          "specific instruction",
+          "cannot proceed",
+          "can't proceed"
+        ]
+      }
     }
   ]
 }

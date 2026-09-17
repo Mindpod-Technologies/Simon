@@ -35,6 +35,12 @@ SCHEMAS = [
     "what are your capabilities",
     "what do you do",
     "show me what you can do",
+    # the exact phrasing that fell through to a confused model in the app:
+    "explain some automations that you can do on my behalf?",
+    "what automations can you run for me?",
+    "which tasks could you handle",
+    "how can you help me",
+    "describe the things you can automate",
 ])
 def test_capability_questions_match(text):
     assert capabilities.is_capability_question(text)
@@ -44,6 +50,8 @@ def test_capability_questions_match(text):
     "can you do my taxes?",
     "can you do me a favour and check my email",
     "what can you do with this PDF I uploaded",   # a task, not a tour
+    "tell me what you can do with this spreadsheet",
+    "show me what you can do to fix this bug",
     "what time is it",
 ])
 def test_non_capability_messages_pass_through(text):

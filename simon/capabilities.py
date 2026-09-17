@@ -14,14 +14,25 @@ import re
 # Clear capability questions. Deliberately strict: "can you do my taxes?"
 # is a request, not a capability question, and must sail through; likewise
 # "what can you do with this PDF" is a task, not a tour — excluded by the
-# negative lookahead on with/to/for/about/on/using.
+# negative lookahead on with/to/for/using. Note "on my behalf" IS a tour
+# phrasing, so bare "on" is intentionally not excluded below.
 CAPABILITY_QUESTION_RE = re.compile(
     r"what\s+(?:\w+\s+){0,3}can\s+you\s+do\b"
     r"(?!\s+(?:with|to|for|about|on|using))"
     r"|what\s+you\s+can\s+do\b"
     r"(?!\s+(?:with|to|for|about|on|using))"
     r"|what\s+do\s+you\s+do\b"
-    r"|what\s+(?:are|is)\s+your\s+(?:capabilities|abilities|features|skills)\b",
+    r"|what\s+(?:are|is)\s+your\s+(?:capabilities|abilities|features|skills)\b"
+    # "explain some automations that you can do (on my behalf)" — a tour
+    # request in different clothes. The lookahead still protects tasks like
+    # "tell me what you can do with this PDF".
+    r"|(?:explain|describe|show|tell)\s+(?:me\s+)?(?:\w+\s+){0,5}"
+    r"(?:you\s+can|can\s+you)\s+(?:do|run|handle|automate|perform)\b"
+    r"(?!\s+(?:with|to|using))"
+    r"|(?:what|which)\s+(?:automations?|things|tasks)\s+"
+    r"(?:\w+\s+){0,3}(?:can|could)\s+you\s+(?:do|run|handle|automate|perform)\b"
+    r"(?!\s+(?:with|to|using))"
+    r"|how\s+(?:can|could)\s+you\s+help\b",
     re.IGNORECASE,
 )
 
