@@ -345,6 +345,32 @@ def create_app(settings) -> FastAPI:
         from simon import licensing
         return asdict(licensing.check_license(settings))
 
+    @app.get("/api/plugins")
+    async def plugins_status():
+        """Loaded drop-in plugins (+ their tools) and configured MCP servers."""
+        import json as _json
+        from simon.tools import LOADED_PLUGINS, ToolRegistry, load_plugins
+        if not LOADED_PLUGINS:
+            # No agent has been built yet this process — probe-load the
+            # plugins into a throwaway registry so the panel isn't empty.
+            try:
+                load_plugins(ToolRegistry())
+            except Exception:  # noqa: BLE001
+                pass
+        mcp_names: list[str] = []
+        cfg = getattr(settings, "simon_mcp_config", "") or "mcp.json"
+        try:
+            data = _json.loads((Path(cfg)).read_text())
+            # Server NAMES only — the config may carry tokens as values.
+            mcp_names = sorted((data.get("mcpServers") or {}).keys())
+        except Exception:  # noqa: BLE001
+            pass
+        return {
+            "plugins": [{"name": n, "tools": t}
+                        for n, t in sorted(LOADED_PLUGINS.items())],
+            "mcp_servers": mcp_names,
+        }
+
     app.mount(
         "/static", StaticFiles(directory=STATIC_DIR), name="static"
     )

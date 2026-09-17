@@ -76,6 +76,11 @@ def tool(name: str, description: str, parameters: dict):
     return decorator
 
 
+# Bookkeeping for the UI: which drop-in plugins loaded and what tools each
+# contributed. Keyed by file name, filled during build_default_registry.
+LOADED_PLUGINS: dict[str, list[str]] = {}
+
+
 def load_plugins(registry: ToolRegistry, plugins_dir: Path | None = None) -> None:
     """Import each plugins/*.py module and call its register(registry) if present.
 
@@ -92,12 +97,14 @@ def load_plugins(registry: ToolRegistry, plugins_dir: Path | None = None) -> Non
             spec = importlib.util.spec_from_file_location(module_name, path)
             if spec is None or spec.loader is None:
                 raise ImportError(f"cannot load spec for {path}")
+            before = set(registry._tools)
             module = importlib.util.module_from_spec(spec)
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
             register = getattr(module, "register", None)
             if callable(register):
                 register(registry)
+                LOADED_PLUGINS[path.name] = sorted(set(registry._tools) - before)
                 log.info("loaded plugin %s", path.name)
         except Exception as exc:  # noqa: BLE001 - bad plugin must not break startup
             log.warning("skipping plugin %s: %s", path.name, exc)

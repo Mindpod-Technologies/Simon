@@ -16,6 +16,7 @@
   var artifactsList = document.getElementById("artifacts-list");
   var jobsList = document.getElementById("jobs-list");
   var schedulesList = document.getElementById("schedules-list");
+  var pluginsList = document.getElementById("plugins-list");
   var taskSelect = document.getElementById("task-select");
   var newTaskBtn = document.getElementById("new-task");
   var previewModal = document.getElementById("preview-modal");
@@ -314,6 +315,39 @@
           div.appendChild(nameEl);
           div.appendChild(when);
           schedulesList.appendChild(div);
+        });
+      })
+      .catch(function () { /* best-effort */ });
+    fetch("/api/plugins")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        pluginsList.innerHTML = "";
+        var rows = (data.plugins || []).map(function (p) {
+          return { name: p.name.replace(/\.py$/, ""),
+                   detail: p.tools.length ? p.tools.join(", ")
+                                          : "no tools registered" };
+        });
+        (data.mcp_servers || []).forEach(function (s) {
+          rows.push({ name: s, detail: "MCP connector" });
+        });
+        if (!rows.length) {
+          pluginsList.innerHTML =
+            '<span class="docs-empty">No plugins installed. Drop a .py ' +
+            'file into plugins/ or an MCP server into mcp.json.</span>';
+          return;
+        }
+        rows.forEach(function (r) {
+          var div = document.createElement("div");
+          div.className = "doc-item";
+          var nameEl = document.createElement("div");
+          nameEl.className = "name";
+          nameEl.textContent = r.name;
+          var detail = document.createElement("div");
+          detail.className = "sched-when";
+          detail.textContent = r.detail;
+          div.appendChild(nameEl);
+          div.appendChild(detail);
+          pluginsList.appendChild(div);
         });
       })
       .catch(function () { /* best-effort */ });
