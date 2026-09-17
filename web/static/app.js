@@ -149,10 +149,30 @@
     if (!on) input.focus();
   }
 
+  /* ---- speech queue: replies wait their turn ----
+     If Simon is still speaking when the next reply arrives, the new audio
+     queues instead of talking over him. */
+
+  var speechQueue = [];
+  var speechPlaying = false;
+
   function playTts(text) {
     // Strip artifact markers — Simon shouldn't read file paths aloud.
     text = text.replace(ARTIFACT_RE, "").trim();
     if (!text) return;
+    speechQueue.push(text);
+    if (!speechPlaying) drainSpeech();
+  }
+
+  function drainSpeech() {
+    var text = speechQueue.shift();
+    if (text === undefined) {
+      speechPlaying = false;
+      orbSpeaking(false);
+      setStatus("ONLINE");
+      return;
+    }
+    speechPlaying = true;
     orbSpeaking(true);
     setStatus("SPEAKING");
     fetch("/api/tts", {
@@ -169,17 +189,14 @@
         var audio = new Audio(url);
         audio.onended = audio.onerror = function () {
           URL.revokeObjectURL(url);
-          orbSpeaking(false);
-          setStatus("ONLINE");
+          drainSpeech();
         };
         audio.play().catch(function () {
-          orbSpeaking(false);
-          setStatus("ONLINE");
+          drainSpeech();
         });
       })
       .catch(function () {
-        orbSpeaking(false);
-        setStatus("ONLINE");
+        drainSpeech();
       });
   }
 

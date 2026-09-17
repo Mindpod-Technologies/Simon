@@ -4,12 +4,55 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from datetime import datetime
 
 import edge_tts
 
 DEFAULT_VOICE = "en-GB-RyanNeural"
 DEFAULT_RATE = "+0%"
+
+# Markdown replies are for the eye, not the ear — edge-tts reads literal
+# markup aloud ("asterisk asterisk", "hash", "open bracket"). speech_text()
+# rewrites a markdown reply into plain spoken language. Used by synthesize()
+# so every channel (web, Slack, Teams, Telegram, voice CLI) benefits.
+
+_FENCED_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_BOLD_RE = re.compile(r"(\*\*|__)(.*?)\1")
+_ITALIC_RE = re.compile(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])|(?<![\w_])_([^_\n]+)_(?![\w_])")
+_CODE_RE = re.compile(r"`([^`]*)`")
+_HEADING_RE = re.compile(r"^#{1,6}\s*", re.MULTILINE)
+_QUOTE_RE = re.compile(r"^>\s?", re.MULTILINE)
+_BULLET_RE = re.compile(r"^[ \t]*[-*+]\s+", re.MULTILINE)
+_RULE_RE = re.compile(r"^\s*([-*_])\1{2,}\s*$", re.MULTILINE)
+_TABLE_SEP_RE = re.compile(r"^\s*\|?[\s:|-]+\|[\s:|-]+\s*$", re.MULTILINE)
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>")
+
+
+def speech_text(text: str) -> str:
+    """Convert markdown-formatted reply text into plain speakable text."""
+    if not text:
+        return ""
+    out = text
+    # Fenced code: don't read code aloud — acknowledge it instead.
+    out = _FENCED_RE.sub(" I've included a code snippet in the chat. ", out)
+    out = _IMAGE_RE.sub(" ", out)                       # images: drop
+    out = _LINK_RE.sub(r"\1", out)                      # links: speak label only
+    out = _BOLD_RE.sub(r"\2", out)
+    out = _ITALIC_RE.sub(lambda m: m.group(1) or m.group(2), out)
+    out = _CODE_RE.sub(r"\1", out)                      # inline code: keep words
+    out = _HEADING_RE.sub("", out)
+    out = _QUOTE_RE.sub("", out)
+    out = _BULLET_RE.sub("", out)
+    out = _RULE_RE.sub(" ", out)
+    out = _TABLE_SEP_RE.sub("", out)                    # markdown table dividers
+    out = out.replace("|", ", ")                        # table cells read as lists
+    out = _HTML_TAG_RE.sub(" ", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    return out.strip()
 
 
 async def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, rate: str = DEFAULT_RATE) -> str:
@@ -18,7 +61,10 @@ async def synthesize(text: str, out_path: str, voice: str = DEFAULT_VOICE, rate:
     Returns ``out_path``. Raises ValueError on empty text, RuntimeError on
     synthesis failure.
     """
-    if not text or not text.strip():
+    if not text:
+        raise ValueError("cannot synthesize empty text")
+    text = speech_text(text)
+    if not text.strip():
         raise ValueError("cannot synthesize empty text")
     voice = voice or DEFAULT_VOICE
     rate = rate or DEFAULT_RATE
