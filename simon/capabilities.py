@@ -27,12 +27,34 @@ CAPABILITY_QUESTION_RE = re.compile(
     # request in different clothes. The lookahead still protects tasks like
     # "tell me what you can do with this PDF".
     r"|(?:explain|describe|show|tell)\s+(?:me\s+)?(?:\w+\s+){0,5}"
-    r"(?:you\s+can|can\s+you)\s+(?:do|run|handle|automate|perform)\b"
+    r"(?:you\s+can|can\s+you)\s+(?:do|run|handle|automate|perform|set\s+up|create|make)\b"
     r"(?!\s+(?:with|to|using))"
     r"|(?:what|which)\s+(?:automations?|things|tasks)\s+"
     r"(?:\w+\s+){0,3}(?:can|could)\s+you\s+(?:do|run|handle|automate|perform)\b"
     r"(?!\s+(?:with|to|using))"
-    r"|how\s+(?:can|could)\s+you\s+help\b",
+    r"|how\s+(?:can|could)\s+you\s+help\b"
+    # Paraphrase-sweep coverage (scripts/paraphrase battery + tests):
+    r"|what\s+(?:are\s+you\s+able|do\s+you\s+know\s+how)\s+to\s+do\b"
+    r"(?!\s+(?:with|to|using))"
+    r"|what\s+can\s+you\s+help\b"
+    r"|what\s+can\s+you\s+automate\b"
+    r"|what\s+(?:are|is)\s+your\s+"
+    r"(?:capabilities|abilities|features|skills|functions|tools)\b"
+    r"|what\s+(?:features|functions|tools|skills|capabilities)\s+"
+    r"do\s+you\s+(?:have|offer|support|include)\b"
+    r"|(?:list|show\s+me|name)\s+your\s+"
+    r"(?:capabilities|abilities|features|skills|functions|tools)\b"
+    r"|(?:give\s+me\s+a\s+tour\s+of|walk\s+me\s+through|run\s+through)\s+"
+    r"(?:your\s+)?(?:\w+\s+){0,3}"
+    r"(?:features|capabilities|abilities|skills|functions|tools)\b"
+    r"|tell\s+me\s+about\s+your\s+"
+    r"(?:capabilities|abilities|features|skills|functions|tools)\b"
+    r"|tell\s+me\s+what\s+you'?re\s+able\s+to\s+do\b"
+    r"(?!\s+(?:with|to|using))"
+    r"|(?:what\s+are\s+you|explain\s+what\s+you'?re)\s+capable\s+of\b"
+    r"|(?:what|which)\s+(?:kinds?|sorts?|types?)\s+of\s+(?:\w+\s+){0,2}"
+    r"(?:tasks?|things|work)\s+(?:\w+\s+){0,2}(?:can|could)\s+you\b"
+    r"|how\s+(?:can|could)\s+you\s+(?:assist|be\s+of)\b",
     re.IGNORECASE,
 )
 

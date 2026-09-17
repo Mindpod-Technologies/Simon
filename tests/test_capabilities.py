@@ -41,6 +41,28 @@ SCHEMAS = [
     "which tasks could you handle",
     "how can you help me",
     "describe the things you can automate",
+    # paraphrase battery (sweep-verified 2026-09-17):
+    "what are you able to do",
+    "what can you help me with",
+    "what features do you have",
+    "what are your functions",
+    "list your skills",
+    "list your capabilities",
+    "give me a tour of your features",
+    "tell me about your capabilities",
+    "explain what you're capable of",
+    "what are you capable of",
+    "what do you know how to do",
+    "explain the automations you can set up",
+    "what kind of tasks can you handle",
+    "how can you assist me",
+    "what can you automate for me",
+    "show me your abilities",
+    "tell me what you're able to do",
+    "what sorts of things can you do",
+    "run through what you can do",
+    "walk me through your capabilities",
+    "what all can you do",
 ])
 def test_capability_questions_match(text):
     assert capabilities.is_capability_question(text)
@@ -52,6 +74,11 @@ def test_capability_questions_match(text):
     "what can you do with this PDF I uploaded",   # a task, not a tour
     "tell me what you can do with this spreadsheet",
     "show me what you can do to fix this bug",
+    "can you automate my weekly report",           # a task order
+    "help me write a document",
+    "can you search for flights to Denver",
+    "can you help me move this file",
+    "set up an automation for Mondays",
     "what time is it",
 ])
 def test_non_capability_messages_pass_through(text):
