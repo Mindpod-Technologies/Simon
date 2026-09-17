@@ -38,6 +38,18 @@ let tray = null;
 let backend = null;
 let quitting = false;
 
+// Tiny main-process log: when the window goes missing in the field, this is
+// the difference between guessing and knowing.
+const LOG_FILE = path.join(os.homedir(), 'simon', 'data', 'logs', 'desktop.log');
+function dlog(msg) {
+  try {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+    fs.appendFileSync(LOG_FILE, `${new Date().toISOString()} ${msg}\n`);
+  } catch (_) { /* logging must never break the app */ }
+}
+process.on('uncaughtException', (e) => dlog(`uncaughtException: ${e.stack || e}`));
+process.on('unhandledRejection', (e) => dlog(`unhandledRejection: ${e && e.stack || e}`));
+
 function healthy(url, timeoutMs = 2000) {
   return new Promise((resolve) => {
     // Any HTTP response — including 303 (auth gate sends / to /setup or
@@ -410,22 +422,43 @@ let quickAsk = null;
 function toggleQuickAsk() {
   if (quickAsk && !quickAsk.isDestroyed()) {
     if (quickAsk.isVisible()) { quickAsk.hide(); return; }
-    quickAsk.show(); quickAsk.focus(); return;
+    showQuickAsk();
+    return;
   }
   quickAsk = new BrowserWindow({
     width: 420, height: 380,
     frame: false, resizable: false, alwaysOnTop: true, skipTaskbar: true,
+    show: false,
     backgroundColor: '#0b1116',
     webPreferences: { contextIsolation: true, nodeIntegration: false },
   });
-  quickAsk.on('blur', () => { if (quickAsk && !quickAsk.isDestroyed()) quickAsk.hide(); });
+  // Hide on blur — but only AFTER it has genuinely been focused once.
+  // Invoked from the global shortcut the app is usually backgrounded, and
+  // an immediate blur would hide the popup the instant it appears.
+  let focusedOnce = false;
+  quickAsk.on('focus', () => { focusedOnce = true; });
+  quickAsk.on('blur', () => {
+    if (focusedOnce && quickAsk && !quickAsk.isDestroyed()) quickAsk.hide();
+  });
   quickAsk.loadURL(STATUS_URL + '/quickask');
+  quickAsk.once('ready-to-show', showQuickAsk);
   quickAsk.on('closed', () => { quickAsk = null; });
 }
 
+function showQuickAsk() {
+  if (!quickAsk || quickAsk.isDestroyed()) return;
+  // Steal focus so the field is actually usable when invoked from anywhere.
+  try { app.focus({ steal: true }); } catch (_) { /* older Electron */ }
+  quickAsk.show();
+  quickAsk.focus();
+}
+
 app.whenReady().then(() => {
-  createWindow();
+  dlog('whenReady: creating window');
+  createWindow().then(() => dlog('createWindow resolved'))
+    .catch((e) => dlog(`createWindow FAILED: ${e && e.stack || e}`));
   createTray();
+  dlog('tray created');
   globalShortcut.register('Alt+Space', () => toggleQuickAsk());
   app.on('activate', () => { if (mainWindow) mainWindow.show(); });
 });

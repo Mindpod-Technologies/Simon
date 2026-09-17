@@ -105,3 +105,12 @@ def test_approvals_endpoint_empty(client, tmp_path, monkeypatch):
     r = client.get("/api/approvals")
     assert r.status_code == 200
     assert r.json() == {"pending": []}
+
+
+def test_plugins_endpoint_accepts_servers_key(client, tmp_path, monkeypatch):
+    """mcp.json may use the short 'servers' key (mcp_client convention)."""
+    (tmp_path / "mcp.json").write_text(
+        '{"servers": {"github": {"command": "x"}, "filesystem": {"command": "y"}}}')
+    r = client.get("/api/plugins")
+    assert r.status_code == 200
+    assert r.json()["mcp_servers"] == ["filesystem", "github"]

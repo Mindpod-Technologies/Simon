@@ -60,6 +60,40 @@
 
   var ARTIFACT_RE = /\[artifact:([^\]\s]+)\]/g;
 
+  function appendMarkdown(container, text) {
+    /* Minimal, DOM-safe markdown: bullets, **bold**, *italic*, `code`.
+       Never innerHTML — reply text is untrusted model output. */
+    text.split("\n").forEach(function (line, idx) {
+      if (idx) container.appendChild(document.createElement("br"));
+      var bullet = /^\s*[-*+]\s+/.exec(line);
+      if (bullet) {
+        container.appendChild(document.createTextNode("• "));
+        line = line.slice(bullet[0].length);
+      }
+      var re = /\*\*([^*]+)\*\*|\*([^*\n]+)\*|`([^`]*)`/g;
+      var last = 0, m;
+      while ((m = re.exec(line)) !== null) {
+        if (m.index > last) {
+          container.appendChild(
+            document.createTextNode(line.slice(last, m.index)));
+        }
+        var el;
+        if (m[1] !== undefined) {
+          el = document.createElement("strong"); el.textContent = m[1];
+        } else if (m[2] !== undefined) {
+          el = document.createElement("em"); el.textContent = m[2];
+        } else {
+          el = document.createElement("code"); el.textContent = m[3];
+        }
+        container.appendChild(el);
+        last = m.index + m[0].length;
+      }
+      if (last < line.length) {
+        container.appendChild(document.createTextNode(line.slice(last)));
+      }
+    });
+  }
+
   function appendRichText(container, text) {
     /* Render text with [artifact:path] markers as images / cards. */
     var last = 0;
@@ -70,14 +104,15 @@
       found = true;
       var before = text.slice(last, match.index).trim();
       if (before) {
-        container.appendChild(document.createTextNode(before + "\n"));
+        appendMarkdown(container, before);
+        container.appendChild(document.createElement("br"));
       }
       container.appendChild(artifactNode(match[1]));
       last = match.index + match[0].length;
     }
     var tail = text.slice(last).trim();
     if (tail || !found) {
-      container.appendChild(document.createTextNode(tail));
+      appendMarkdown(container, tail);
     }
   }
 

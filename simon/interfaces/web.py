@@ -367,7 +367,10 @@ def create_app(settings) -> FastAPI:
         try:
             data = _json.loads((Path(cfg)).read_text())
             # Server NAMES only — the config may carry tokens as values.
-            mcp_names = sorted((data.get("mcpServers") or {}).keys())
+            # Accept both conventions: Claude-Desktop "mcpServers" and the
+            # shorter "servers" used by mcp_client.
+            servers = data.get("mcpServers") or data.get("servers") or {}
+            mcp_names = sorted(servers.keys())
         except Exception:  # noqa: BLE001
             pass
         return {
