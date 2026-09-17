@@ -4,8 +4,8 @@ const TEAL = '#4fd1c5'
 
 // Live product links.
 const REPO_URL = 'https://github.com/Mindpod-Technologies/Simon'
-const RELEASE_URL = `${REPO_URL}/releases/tag/v1.6.0`
-const DOWNLOAD_URL = `${REPO_URL}/releases/download/v1.6.0/Simon.Work-1.6.0-arm64.dmg`
+const RELEASE_URL = `${REPO_URL}/releases/tag/v1.6.2`
+const DOWNLOAD_URL = `${REPO_URL}/releases/download/v1.6.2/Simon.Work-1.6.2-arm64.dmg`
 const ISSUES_URL = `${REPO_URL}/issues`
 const SALES_EMAIL = 'sales@mindpodtech.com'
 
