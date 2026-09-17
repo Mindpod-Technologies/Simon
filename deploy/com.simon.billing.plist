@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd LaunchAgent for the Simon billing service (Stripe webhook →
+  license key fulfillment, port 8792). __HOME__ is rendered by
+  deploy/install_mac.sh; replace by hand if installing manually.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.simon.billing</string>
+    <key>WorkingDirectory</key>
+    <string>__HOME__/simon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__HOME__/simon/.venv/bin/python</string>
+        <string>-m</string>
+        <string>billing.server</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__HOME__/simon/data/logs/billing.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/simon/data/logs/billing.err.log</string>
+</dict>
+</plist>

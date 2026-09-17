@@ -9,6 +9,17 @@ const DOWNLOAD_URL = `${REPO_URL}/releases/download/v1.6.0/Simon.Work-1.6.0-arm6
 const ISSUES_URL = `${REPO_URL}/issues`
 const SALES_EMAIL = 'sales@mindpodtech.com'
 
+// Stripe Payment Links (created in the Stripe dashboard, no code needed).
+// Paste the live URLs here to switch Buy Pro from email-us to real checkout.
+// After payment, the billing webhook mints + emails the license key and the
+// success page displays it. Empty = fall back to the mailto flow.
+const STRIPE_PAYMENT_LINK_PRO = ''
+const STRIPE_PAYMENT_LINK_BUSINESS = ''
+const BUY_PRO_HREF = STRIPE_PAYMENT_LINK_PRO ||
+  `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Pro&body=I%27d%20like%20a%20Pro%20license%20key.`
+const BUY_BUSINESS_HREF = STRIPE_PAYMENT_LINK_BUSINESS ||
+  `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Business`
+
 // Waitlist endpoint: create a free form at formspree.io (or any form
 // backend) and paste its URL here, e.g. https://formspree.io/f/abcdwxyz
 // Empty = the form falls back to opening the visitor's email client.
@@ -64,7 +75,7 @@ const TIERS = [
     cadence: '/month per seat',
     alt: 'or $149 lifetime',
     cta: 'Buy Pro',
-    href: `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Pro&body=I%27d%20like%20a%20Pro%20license%20key.`,
+    href: BUY_PRO_HREF,
     featured: true,
     items: ['Commercial use, one operator', '12 months of updates', 'Email support', 'Private release downloads'],
   },
@@ -73,7 +84,7 @@ const TIERS = [
     price: '$49',
     cadence: '/month per seat',
     cta: 'Talk to us',
-    href: `mailto:${SALES_EMAIL}?subject=Simon%20Work%20Business`,
+    href: BUY_BUSINESS_HREF,
     featured: false,
     items: ['Seat volume discounts', 'White-label rights', 'Priority support + onboarding call', 'Roadmap influence, invoice/PO flow'],
   },
