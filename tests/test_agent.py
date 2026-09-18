@@ -273,3 +273,42 @@ def test_false_refusal_detects_curly_apostrophes():
     # Normal answers never trigger.
     assert not Agent._looks_like_false_refusal(
         "Here are your files, sir.", "list files on desktop")
+
+
+def test_extract_url_ignores_email_addresses():
+    """jarasf@mindpoodtech.com is contact info, not a page to fetch."""
+    assert Agent._extract_url("Send it to jarasf@mindpoodtech.com") == ""
+    assert Agent._extract_url("email a@x.io and b@y.co please") == ""
+    assert Agent._extract_url("check out mindpodtech.com") == "mindpodtech.com"
+    assert Agent._extract_url("see https://example.com/p") == \
+        "https://example.com/p"
+
+
+class FailFetchLLM:
+    """Always answers directly; no tools."""
+    def __init__(self):
+        self.calls = []
+    def chat(self, messages, tools=None, model=None):
+        self.calls.append(messages)
+        return {"content": "My own answer stands, sir.", "tool_calls": []}
+
+
+class FailFetchRegistry:
+    def __contains__(self, name):
+        return name == "fetch_url"
+    def schemas(self):
+        return []
+    def call(self, name, args):
+        return "Error: DNS does not resolve"
+
+
+def test_failed_forced_fetch_does_not_hijack_turn(tmp_path, monkeypatch):
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    llm = FailFetchLLM()
+    agent = Agent(Settings(), registry=FailFetchRegistry(),
+                  session_id="fetchfail", llm=llm)
+    reply = agent.handle("what is on unreachable-site-xyz.com?")
+    assert reply == "My own answer stands, sir."
+    # No regeneration from the error text — one model call only.
+    assert len(llm.calls) == 1

@@ -651,28 +651,36 @@ class Agent:
                 logger.info("URL in user message but no fetch — grounding "
                             "deterministically via fetch_url(%s)", url)
                 fetched = self.registry.call("fetch_url", {"url": url})
-                _collect_artifact_markers(fetched)
-                tools_used.append("fetch_url")
-                regenerated = True
-                ground_messages = messages + [
-                    {"role": "user", "content": (
-                        f"[System note: the user asked about {url}. The "
-                        f"system has fetched the page FOR you — this is the "
-                        f"real, current content. Answer the user's question "
-                        f"strictly from it; if it does not contain the "
-                        f"answer, say so. Do not call more tools.\n\n"
-                        f"{fetched}]")},
-                ]
-                try:
-                    if model is None:
-                        result = self.llm.chat(ground_messages)
-                    else:
-                        result = self.llm.chat(ground_messages, model=model)
-                    candidate = (result.get("content") or "").strip()
-                    if candidate:
-                        reply = candidate
-                except Exception:
-                    logger.exception("URL grounding regeneration failed")
+                if str(fetched).startswith("Error"):
+                    # A failed forced fetch must not hijack the turn: the
+                    # user's actual request (research, a job, an email) still
+                    # stands. Leave the model's own reply alone.
+                    logger.info("URL grounding fetch failed for %s — skipping "
+                                "regeneration", url)
+                    regenerated = False
+                else:
+                    _collect_artifact_markers(fetched)
+                    tools_used.append("fetch_url")
+                    regenerated = True
+                    ground_messages = messages + [
+                        {"role": "user", "content": (
+                            f"[System note: the user asked about {url}. The "
+                            f"system has fetched the page FOR you — this is the "
+                            f"real, current content. Answer the user's question "
+                            f"strictly from it; if it does not contain the "
+                            f"answer, say so. Do not call more tools.\n\n"
+                            f"{fetched}]")},
+                    ]
+                    try:
+                        if model is None:
+                            result = self.llm.chat(ground_messages)
+                        else:
+                            result = self.llm.chat(ground_messages, model=model)
+                        candidate = (result.get("content") or "").strip()
+                        if candidate:
+                            reply = candidate
+                    except Exception:
+                        logger.exception("URL grounding regeneration failed")
 
         # Pseudo-tool-call rescue: sometimes the model WRITES the tool call as
         # plain text ("schedule_task(description='…', hour=16)") instead of
@@ -1011,13 +1019,18 @@ class Agent:
 
     @staticmethod
     def _extract_url(text: str) -> str:
-        """Return the first URL-looking token in the user message, or ''."""
-        match = re.search(r"https?://[^\s)\]>\"']+", text or "")
+        """Return the first URL-looking token in the user message, or ''.
+
+        Email addresses are stripped first — the domain in jarasf@x.com is
+        contact information, not a request to fetch a website.
+        """
+        text = re.sub(r"\S+@\S+", " ", text or "")  # remove email addresses
+        match = re.search(r"https?://[^\s)\]>\"']+", text)
         if match:
             return match.group(0)
         match = re.search(
             r"\b(?:www\.)?[a-z0-9][a-z0-9-]*\.(?:com|org|net|io|ai|co|dev|"
-            r"app|tech|xyz|info|biz)(?:/[^\s)\]>\"']*)?", (text or "").lower())
+            r"app|tech|xyz|info|biz)(?:/[^\s)\]>\"']*)?", text.lower())
         return match.group(0) if match else ""
 
     def _mentions_tool(self, text: str) -> bool:
