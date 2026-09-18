@@ -142,3 +142,28 @@ def test_api_error_reported():
             lambda *a, **k: FakeResp(status=403, text="Forbidden")):
         out = graph_mail.read_recent_emails_graph(s)
     assert "403" in out
+
+
+def test_mail_tools_tolerate_model_invented_kwargs(monkeypatch):
+    """Models sometimes pass 'address'/'recipient' instead of the schema's
+    exact parameter names — the wrappers must cope, not TypeError."""
+    import types
+    from simon.tools import ToolRegistry
+    from simon.tools import graph_mail
+
+    monkeypatch.setattr(graph_mail, "read_recent_emails_graph",
+                        lambda s, count=10: f"recent:{count}")
+    monkeypatch.setattr(graph_mail, "read_email_graph",
+                        lambda s, mid: f"email:{mid}")
+    monkeypatch.setattr(graph_mail, "send_email_graph",
+                        lambda s, to, subject, body: f"sent:{to}:{subject}")
+    settings = types.SimpleNamespace(
+        graph_tenant_id="t", graph_client_id="c", graph_client_secret="s",
+        simon_mailbox="simon@x.com")
+    reg = ToolRegistry()
+    graph_mail.register_graph_mail_tools(reg, settings)
+
+    assert reg.call("read_recent_emails", {"count": 5, "address": "x"}) == "recent:5"
+    assert reg.call("read_email", {"address": "mid-9"}) == "email:mid-9"
+    assert reg.call("send_email", {"recipient": "a@b.c",
+                                   "subject": "s", "body": "b"}) == "sent:a@b.c:s"

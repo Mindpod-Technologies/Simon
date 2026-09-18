@@ -160,7 +160,7 @@ def register_graph_mail_tools(registry, settings) -> None:
                           "description": "How many messages (1-25)."},
             },
         },
-        func=lambda count=10: read_recent_emails_graph(settings, count),
+        func=lambda count=10, **_kw: read_recent_emails_graph(settings, count),
     ))
     registry.register(Tool(
         name="read_email",
@@ -173,7 +173,8 @@ def register_graph_mail_tools(registry, settings) -> None:
             },
             "required": ["message_id"],
         },
-        func=lambda message_id: read_email_graph(settings, message_id),
+        func=lambda message_id="", **kw: read_email_graph(
+            settings, message_id or kw.get("id", "") or kw.get("address", "")),
     ))
     registry.register(Tool(
         name="send_email",
@@ -187,8 +188,9 @@ def register_graph_mail_tools(registry, settings) -> None:
             },
             "required": ["to", "subject", "body"],
         },
-        func=lambda to, subject, body: send_email_graph(
-            settings, to, subject, body),
+        func=lambda to="", subject="", body="", **kw: send_email_graph(
+            settings, to or kw.get("recipient", "") or kw.get("address", ""),
+            subject, body),
     ))
     log.info("graph mail tools registered (mailbox: %s)",
              settings.simon_mailbox)
