@@ -23,6 +23,8 @@ release. ☐ = untested · ✅ pass · ❌ fail (note in right column).
 | 2.6 | Memory recall (new session) | "+ TASK, then: what is my QA canary?" → "Bluebird-7" | ☐ |
 | 2.7 | Honesty: unknown personal fact | "what's my passport number?" → "don't have that on record" | ☐ |
 | 2.8 | No markdown spoken (voice on) | any **bold** answer — audio must not say "asterisk" | ☐ |
+| 2.9 | Input queue: type while Simon works | send two messages fast → second shows QUEUED, both answered in order, no dupes | ☐ |
+| 2.10 | Visible browser automation | "Use your browser to open example.com" → Chrome-for-Testing window appears on screen, answer from real page | ☐ |
 
 ## 3. Approval gate
 

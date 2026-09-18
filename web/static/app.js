@@ -606,10 +606,31 @@
 
   /* ---- chat ---- */
 
+  function setBusy(on) {
+    busy = on;
+    // The dock never locks: new messages queue while Simon works and are
+    // sent in order when he finishes (assistant-grade UX, not a chatbot).
+    if (!on) input.focus();
+  }
+
+  /* ---- message queue ---- */
+  var msgQueue = [];
+
   function send() {
     var text = input.value.trim();
-    if (!text || busy) return;
+    if (!text) return;
     input.value = "";
+    if (busy) {
+      var div = addMsg("You", text, "user queued");
+      div.title = "Queued — Simon will take this next";
+      msgQueue.push({ text: text, div: div });
+      setStatus("QUEUED (" + msgQueue.length + ")");
+      return;
+    }
+    doSend(text);
+  }
+
+  function doSend(text) {
     addMsg("You", text);
     setBusy(true);
     orbThinking(true);
@@ -686,10 +707,19 @@
       .then(function () {
         orbThinking(false);
         setBusy(false);
-        setStatus("ONLINE");
         refreshDocuments(); // Simon may have created an artifact this turn
         refreshActivity();  // …or queued a job / created an automation
         if (full) playTts(full);
+        if (msgQueue.length) {
+          var next = msgQueue.shift();
+          next.div.remove();  // re-posted by doSend in correct chronological position
+          setStatus(msgQueue.length
+            ? "WORKING — " + msgQueue.length + " QUEUED"
+            : "WORKING");
+          doSend(next.text);
+        } else {
+          setStatus("ONLINE");
+        }
       });
   }
 

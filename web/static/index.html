@@ -196,6 +196,9 @@
     background: transparent; border: 1px dashed var(--panel-border);
     color: var(--ink-dim); font-size: 12px;
   }
+  .msg.queued {
+    opacity: 0.55; border-style: dashed;
+  }
   .msg code {
     background: rgba(63,198,201,0.1); border-radius: 5px;
     padding: 1px 6px; font-size: 12.5px;
@@ -399,7 +402,7 @@
         <button class="dock-btn" id="mic" title="Hold a voice message">🎤</button>
         <button id="send">Send</button>
       </div>
-      <div id="dock-hint">Markdown renders richly · voice replies queue politely · sensitive actions always ask first</div>
+      <div id="dock-hint">Type ahead — messages queue while Simon works · markdown renders richly · sensitive actions always ask first</div>
     </div>
   </div>
 
