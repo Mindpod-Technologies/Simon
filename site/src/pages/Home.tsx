@@ -6,6 +6,7 @@ const TEAL = '#4fd1c5'
 const REPO_URL = 'https://github.com/Mindpod-Technologies/Simon'
 const RELEASE_URL = `${REPO_URL}/releases/tag/v1.6.2`
 const DOWNLOAD_URL = `${REPO_URL}/releases/download/v1.6.2/Simon.Work-1.6.2-arm64.dmg`
+const DOWNLOAD_URL_WIN = `${REPO_URL}/releases/download/v1.6.2/Simon.Work-Setup-1.6.2-x64.exe`
 const ISSUES_URL = `${REPO_URL}/issues`
 const SALES_EMAIL = 'sales@mindpodtech.com'
 
@@ -155,7 +156,8 @@ function Hero() {
           takes real actions with tools, and never sends your data to anyone's cloud.
         </p>
         <div className="mt-10 flex items-center justify-center gap-4 flex-wrap">
-          <a href={DOWNLOAD_URL} className="px-7 py-3 rounded-lg bg-[#4fd1c5] text-[#0a0e14] font-medium hover:bg-[#63e0d0] transition-colors">Start free</a>
+          <a href={DOWNLOAD_URL} className="px-7 py-3 rounded-lg bg-[#4fd1c5] text-[#0a0e14] font-medium hover:bg-[#63e0d0] transition-colors">Start free — macOS</a>
+          <a href={DOWNLOAD_URL_WIN} className="px-7 py-3 rounded-lg border border-[#4fd1c5]/40 text-[#4fd1c5] font-medium hover:bg-[#4fd1c5]/10 transition-colors">Start free — Windows</a>
           <a href="#how" className="px-7 py-3 rounded-lg border border-[#1e2a38] text-[#c9d6e3] hover:border-[#4fd1c5]/50 transition-colors">See how it works</a>
         </div>
         <div className="mt-14 max-w-xl mx-auto rounded-lg border border-[#1e2a38] bg-[#0d131c] text-left font-mono text-sm">
