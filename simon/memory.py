@@ -190,14 +190,18 @@ def search_facts(query: str, path: Optional[str] = None) -> list[tuple[str, str]
     return [(key, value) for _score, key, value in scored]
 
 
-def add_reminder(text: str, run_at_iso: str,
+def add_reminder(text: str, run_at_iso: str, session_id: str = "",
                  path: Optional[str] = None) -> int:
-    """Schedule a reminder for ``run_at_iso`` (ISO-8601). Returns its id."""
+    """Schedule a reminder for ``run_at_iso`` (ISO-8601). Returns its id.
+    ``session_id`` attributes it to the person who asked (notification
+    routing); empty = owner."""
+    _ensure_reminder_session_col(path)
     conn = _connect(path)
     try:
         cur = conn.execute(
-            "INSERT INTO reminders (text, run_at) VALUES (?, ?)",
-            (text, run_at_iso),
+            "INSERT INTO reminders (text, run_at, session_id)"
+            " VALUES (?, ?, ?)",
+            (text, run_at_iso, session_id or ""),
         )
         conn.commit()
         return int(cur.lastrowid)
@@ -205,21 +209,39 @@ def add_reminder(text: str, run_at_iso: str,
         conn.close()
 
 
+def _ensure_reminder_session_col(path: Optional[str] = None) -> None:
+    """Migration: attribution column on reminders (added 2026-09).
+    Idempotent — the ALTER is simply swallowed when the column exists."""
+    conn = _connect(path)
+    try:
+        try:
+            conn.execute(
+                "ALTER TABLE reminders ADD COLUMN session_id TEXT"
+                " NOT NULL DEFAULT ''")
+            conn.commit()
+        except Exception:  # column already exists
+            pass
+    finally:
+        conn.close()
+
+
 def due_reminders(now_iso: str, path: Optional[str] = None) -> list[dict]:
     """Return reminders due at or before ``now_iso``, oldest first.
 
-    Each item is ``{"id": int, "text": str, "run_at": str}``.
+    Each item is ``{"id", "text", "run_at", "session_id"}``.
     """
+    _ensure_reminder_session_col(path)
     conn = _connect(path)
     try:
         rows = conn.execute(
-            "SELECT id, text, run_at FROM reminders WHERE run_at <= ? "
-            "ORDER BY run_at",
+            "SELECT id, text, run_at, session_id FROM reminders"
+            " WHERE run_at <= ? ORDER BY run_at",
             (now_iso,),
         ).fetchall()
     finally:
         conn.close()
-    return [{"id": row["id"], "text": row["text"], "run_at": row["run_at"]}
+    return [{"id": row["id"], "text": row["text"], "run_at": row["run_at"],
+             "session_id": row["session_id"]}
             for row in rows]
 
 

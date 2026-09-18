@@ -12,9 +12,11 @@ log = logging.getLogger(__name__)
 
 def _schedule_task(description: str, hour: int = 9, minute: int = 0,
                    day_of_week: str = "") -> str:
+    from ..context import current_session
     try:
         schedule_id = schedules.add_schedule(
-            description, hour=hour, minute=minute, day_of_week=day_of_week)
+            description, hour=hour, minute=minute, day_of_week=day_of_week,
+            session_id=current_session.get())
     except ValueError as exc:
         return f"Error: {exc}"
     row = next(r for r in schedules.list_schedules() if r["id"] == schedule_id)

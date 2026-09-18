@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import shutil
-from typing import Callable
+from typing import Callable, Optional
 import subprocess
 import tempfile
 from pathlib import Path
@@ -339,6 +339,63 @@ def notify_recipients(settings) -> list[int]:
         for part in settings.telegram_allowed_user_ids.split(",")
         if part.strip().lstrip("-").isdigit()
     ]
+
+
+def session_to_telegram_id(settings, session: str) -> Optional[int]:
+    """Map a canonical session to the Telegram chat that belongs to it.
+
+    Raw numeric sessions ARE Telegram chat ids (family members chatting
+    directly). Named sessions (e.g. 'owner') resolve through the identity
+    map's telegram:<id>=<session> entries. Unknown → owner, so nothing is
+    ever dropped.
+    """
+    s = (session or "").strip()
+    if s.lstrip("-").isdigit():
+        return int(s)
+    for part in (getattr(settings, "simon_identity_map", "") or "").split(","):
+        if "=" in part:
+            k, v = part.split("=", 1)
+            if (v.strip() == s
+                    and k.strip().lower().startswith("telegram:")):
+                uid = k.strip().split(":", 1)[1]
+                if uid.lstrip("-").isdigit():
+                    return int(uid)
+    recipients = notify_recipients(settings)
+    return recipients[0] if recipients else None
+
+
+def make_notify_for(settings) -> Callable[[str, str], None]:
+    """Return notify_for(session, text): deliver to THAT person's Telegram.
+
+    The per-person counterpart to make_notify (which is owner-operational).
+    Schedule results, job completions, and reminders route to whoever
+    asked for them; owner-operational traffic stays on make_notify.
+    """
+    token = settings.telegram_bot_token
+
+    async def _send_one(chat_id: int, text: str) -> None:
+        from telegram import Bot
+        bot = Bot(token=token)
+        await bot.send_message(chat_id=chat_id, text=text[:4000])
+
+    def notify_for(session: str, text: str) -> None:
+        if not text:
+            return
+        uid = session_to_telegram_id(settings, session)
+        if uid is None:
+            log.warning("notify_for: no recipient for session %r", session)
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            try:
+                asyncio.run(_send_one(uid, text))
+            except Exception:  # noqa: BLE001
+                log.exception("notify_for (threaded) failed for %s", uid)
+        else:
+            loop.create_task(_send_one(uid, text))
+
+    return notify_for
 
 
 def make_notify(settings) -> Callable[[str], None]:

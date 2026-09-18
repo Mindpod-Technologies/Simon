@@ -149,6 +149,8 @@ class Agent:
     @_track_interactive
     def handle(self, user_text: str) -> str:
         """Handle one user turn; record an 'error' event if the turn crashes."""
+        from .context import current_session
+        token = current_session.set(self.session_id)
         try:
             return self._handle(user_text)
         except Exception as exc:
@@ -159,6 +161,8 @@ class Agent:
                 error=repr(exc), stage="handle",
                 user_text=user_text[:200])
             raise
+        finally:
+            current_session.reset(token)
 
     def _handle(self, user_text: str) -> str:
         """Handle one user turn and return Simon's final reply text."""

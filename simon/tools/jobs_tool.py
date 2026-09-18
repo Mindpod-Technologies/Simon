@@ -15,7 +15,9 @@ def _start_job(description: str) -> str:
     if len(description) < 10:
         return ("Error: job description too short — describe the task fully, "
                 "including what the final deliverable should be.")
-    job_id = jobs.create_job(description)
+    from ..context import current_session
+    job_id = jobs.create_job(description,
+                             origin_session=current_session.get())
     log.info("job %d created via tool: %.80s", job_id, description)
     return (f"Job #{job_id} queued. It will run in the background and the "
             f"result will be delivered to the user when complete. "

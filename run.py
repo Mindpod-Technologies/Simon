@@ -107,13 +107,15 @@ async def _run_all() -> None:
     # Scheduler delivers proactive messages through Telegram when configured,
     # otherwise it just logs.
     telegram_notify = None
+    telegram_notify_for = None
     if settings.telegram_bot_token:
-        from simon.interfaces.telegram_bot import make_notify
+        from simon.interfaces.telegram_bot import make_notify, make_notify_for
         telegram_notify = make_notify(settings)
+        telegram_notify_for = make_notify_for(settings)
         # Approval asks raised in ANY session (including background jobs)
-        # are pushed to Telegram so nothing parks silently.
+        # are pushed to the Telegram of the person who triggered them.
         from simon import approvals
-        approvals.set_notifier(telegram_notify)
+        approvals.set_session_notifier(telegram_notify_for)
 
     scheduler = Scheduler(
         settings,
@@ -123,6 +125,7 @@ async def _run_all() -> None:
                 settings, exclude={"start_job", "schedule_task"}),
             interface="scheduler"),
         notify=telegram_notify or (lambda text: print(f"[simon] {text}")),
+        notify_for=telegram_notify_for,
     )
     scheduler.start()
 
@@ -143,6 +146,7 @@ async def _run_all() -> None:
             settings,
             agent_factory=_job_agent,
             notify=telegram_notify or (lambda text: print(f"[simon] {text}")),
+            notify_for=telegram_notify_for,
         )
         job_runner.start()
 

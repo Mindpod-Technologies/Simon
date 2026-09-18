@@ -130,13 +130,22 @@ def classify_decision(text: str) -> tuple[Optional[str], Optional[int]]:
 # Optional push hook (Telegram notify) so approval asks raised by background
 # contexts — jobs, scheduled automations — actually reach the owner's pocket
 # instead of sitting silently in a session nobody is watching.
+# _NOTIFIER(text) → owner channel (legacy); _SESSION_NOTIFIER(session, text)
+# → the person who triggered the ask (preferred when set).
 _NOTIFIER = None
+_SESSION_NOTIFIER = None
 
 
 def set_notifier(fn) -> None:
     """Register a notify(text) callback fired when an approval is requested."""
     global _NOTIFIER
     _NOTIFIER = fn
+
+
+def set_session_notifier(fn) -> None:
+    """Register a notify(session_id, text) callback — per-person delivery."""
+    global _SESSION_NOTIFIER
+    _SESSION_NOTIFIER = fn
 
 
 def list_pending(path: Optional[str] = None) -> list[dict]:
@@ -181,14 +190,18 @@ def request(session_id: str, tool: str, args: dict, summary: str,
         approval_id = int(cur.lastrowid)
     finally:
         conn.close()
-    if _NOTIFIER is not None:
+    if _SESSION_NOTIFIER is not None or _NOTIFIER is not None:
         try:
             where = interface or session_id
-            _NOTIFIER(
-                f"Approval needed, sir (via {where}): I'd like to "
+            text = (
+                f"Approval needed (via {where}): I'd like to "
                 f"{summary}. Reply **approve** in any conversation with me "
                 f"— or **approve #{approval_id}** if more than one matter "
                 f"is pending.")
+            if _SESSION_NOTIFIER is not None:
+                _SESSION_NOTIFIER(session_id, text)
+            else:
+                _NOTIFIER(text)
         except Exception:  # noqa: BLE001 - a failed push must not lose the ask
             logger.exception("approval notifier failed")
     return approval_id

@@ -199,14 +199,26 @@ class JobRunner:
     def __init__(self, settings: Any = None,
                  agent_factory: Optional[Callable[[int], Any]] = None,
                  notify: Optional[Callable[[str], None]] = None,
+                 notify_for: Optional[Callable[[str, str], None]] = None,
                  poll_seconds: float = 5.0,
                  db_path: Optional[str] = None) -> None:
         self.agent_factory = agent_factory
         self.notify = notify or (lambda text: logger.info("notify: %s", text))
+        self.notify_for = notify_for
         self.poll_seconds = poll_seconds
         self.db_path = db_path
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
+
+    def _deliver(self, session_id: str, text: str) -> None:
+        """Per-person delivery when wired, else the owner channel."""
+        if self.notify_for is not None:
+            try:
+                self.notify_for(session_id, text)
+                return
+            except Exception:  # noqa: BLE001
+                logger.exception("notify_for failed; falling back to owner")
+        self.notify(text)
 
     def start(self) -> None:
         """Start the polling loop in a daemon thread."""
@@ -240,10 +252,12 @@ class JobRunner:
 
     def _execute(self, job: dict) -> None:
         job_id, description = job["id"], job["description"]
+        origin = job.get("origin_session", "")
         logger.info("job %d started: %.80s", job_id, description)
         t0 = time.monotonic()
-        self.notify(f"On it, sir — picked up job #{job_id}: "
-                    f"«{description[:80]}». I'll report back when it's done.")
+        self._deliver(origin, f"On it — picked up job #{job_id}: "
+                              f"«{description[:80]}». "
+                              f"I'll report back when it's done.")
         try:
             if self.agent_factory is None:
                 raise RuntimeError("no agent_factory configured")
@@ -263,8 +277,8 @@ class JobRunner:
                              job_id=job_id, status="done",
                              description=description[:200],
                              result_len=len(result))
-            self.notify(f"Job #{job_id} complete, sir — "
-                        f"«{description[:80]}»\n\n{result}")
+            self._deliver(origin, f"Job #{job_id} complete — "
+                                  f"«{description[:80]}»\n\n{result}")
         except Exception as exc:  # noqa: BLE001 - a crashed job must not kill the worker
             logger.exception("job %d failed", job_id)
             finish_job(job_id, "failed", error=repr(exc), path=self.db_path)
@@ -273,5 +287,5 @@ class JobRunner:
                              session_id=f"job-{job_id}", latency_ms=duration * 1000,
                              job_id=job_id, status="failed",
                              description=description[:200], error=repr(exc))
-            self.notify(f"I must apologise, sir — job #{job_id} "
-                        f"(«{description[:80]}») failed: {exc}")
+            self._deliver(origin, f"My apologies — job #{job_id} "
+                                  f"(«{description[:80]}») failed: {exc}")

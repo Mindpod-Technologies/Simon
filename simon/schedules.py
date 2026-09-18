@@ -34,7 +34,14 @@ def init_db(path: Optional[str] = None) -> None:
     conn = memory._connect(path)
     try:
         conn.executescript(_SCHEMA)
-        conn.commit()
+        # Migration: attribution column (who asked for this schedule).
+        try:
+            conn.execute(
+                "ALTER TABLE schedules ADD COLUMN session_id TEXT"
+                " NOT NULL DEFAULT ''")
+            conn.commit()
+        except Exception:  # column already exists
+            pass
     finally:
         conn.close()
 
@@ -62,7 +69,8 @@ def describe(row: dict) -> str:
 
 
 def add_schedule(description: str, hour: int = 9, minute: int = 0,
-                 day_of_week: str = "", path: Optional[str] = None) -> int:
+                 day_of_week: str = "", session_id: str = "",
+                 path: Optional[str] = None) -> int:
     """Create an active schedule and return its id. Raises ValueError."""
     err = validate(day_of_week, hour, minute)
     if err:
@@ -75,10 +83,10 @@ def add_schedule(description: str, hour: int = 9, minute: int = 0,
     conn = memory._connect(path)
     try:
         cur = conn.execute(
-            "INSERT INTO schedules (description, hour, minute, day_of_week)"
-            " VALUES (?, ?, ?, ?)",
+            "INSERT INTO schedules (description, hour, minute, day_of_week,"
+            " session_id) VALUES (?, ?, ?, ?, ?)",
             (description, int(hour), int(minute),
-             (day_of_week or "").strip().lower()))
+             (day_of_week or "").strip().lower(), session_id or ""))
         conn.commit()
         return int(cur.lastrowid)
     finally:

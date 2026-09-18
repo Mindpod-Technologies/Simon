@@ -60,15 +60,20 @@ class Scheduler:
 
     def __init__(self, settings: Optional[Settings] = None,
                  agent_factory: Optional[Callable[[], Any]] = None,
-                 notify: Optional[Callable[[str], None]] = None) -> None:
+                 notify: Optional[Callable[[str], None]] = None,
+                 notify_for: Optional[Callable[[str, str], None]] = None
+                 ) -> None:
         """Create the scheduler.
 
         ``agent_factory`` is a zero-arg callable returning an Agent (or a
-        per-briefing new agent). ``notify`` receives the text to deliver.
+        per-briefing new agent). ``notify`` receives owner-operational text
+        to deliver; ``notify_for`` (session, text) delivers per-person —
+        schedule results and reminders go to whoever asked for them.
         """
         self.settings = settings or get_settings()
         self.agent_factory = agent_factory
         self.notify = notify or (lambda text: logger.info("notify: %s", text))
+        self.notify_for = notify_for
         self._scheduler = AsyncIOScheduler()
 
     def start(self) -> None:
@@ -163,11 +168,22 @@ class Scheduler:
             now_iso = datetime.datetime.now().isoformat(timespec="seconds")
             for reminder in memory.due_reminders(now_iso):
                 try:
-                    self.notify(f"Reminder, sir: {reminder['text']}")
+                    self._deliver(reminder.get("session_id", ""),
+                                  f"Reminder: {reminder['text']}")
                 finally:
                     memory.delete_reminder(reminder["id"])
         except Exception:
             logger.exception("Reminder poll failed")
+
+    def _deliver(self, session_id: str, text: str) -> None:
+        """Per-person delivery when wired, else the owner channel."""
+        if self.notify_for is not None:
+            try:
+                self.notify_for(session_id, text)
+                return
+            except Exception:  # noqa: BLE001
+                logger.exception("notify_for failed; falling back to owner")
+        self.notify(text)
 
     async def _mail_check(self) -> None:
         """Poll Simon's M365 inbox; interrupt only for new, actionable mail.
@@ -350,8 +366,10 @@ class Scheduler:
                 agent.handle,
                 TASK_PROMPT.format(description=row["description"]))
             if result:
-                self.notify(f"Scheduled task, sir — «{row['description'][:70]}»"
-                            f"\n\n{result}")
+                self._deliver(
+                    row.get("session_id", ""),
+                    f"Scheduled task — «{row['description'][:70]}»"
+                    f"\n\n{result}")
         except Exception:
             logger.exception("scheduled task %d failed", schedule_id)
 
