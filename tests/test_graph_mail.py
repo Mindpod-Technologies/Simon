@@ -156,7 +156,7 @@ def test_mail_tools_tolerate_model_invented_kwargs(monkeypatch):
     monkeypatch.setattr(graph_mail, "read_email_graph",
                         lambda s, mid: f"email:{mid}")
     monkeypatch.setattr(graph_mail, "send_email_graph",
-                        lambda s, to, subject, body: f"sent:{to}:{subject}")
+                        lambda s, to, subject, body, attachment_path="": f"sent:{to}:{subject}")
     settings = types.SimpleNamespace(
         graph_tenant_id="t", graph_client_id="c", graph_client_secret="s",
         simon_mailbox="simon@x.com")
@@ -167,3 +167,48 @@ def test_mail_tools_tolerate_model_invented_kwargs(monkeypatch):
     assert reg.call("read_email", {"address": "mid-9"}) == "email:mid-9"
     assert reg.call("send_email", {"recipient": "a@b.c",
                                    "subject": "s", "body": "b"}) == "sent:a@b.c:s"
+
+
+def test_send_email_with_workspace_attachment(tmp_path, monkeypatch):
+    """The payload must carry a real base64 fileAttachment."""
+    import base64
+    import types
+    from simon.tools import graph_mail
+
+    ws = tmp_path / "workspace"
+    (ws / "documents").mkdir(parents=True)
+    (ws / "documents" / "report.md").write_text("# Report\ncontent here")
+    captured = {}
+
+    class FakeResp:
+        status_code = 202
+        text = ""
+
+    monkeypatch.setattr(graph_mail, "_token", lambda s: "tok")
+    monkeypatch.setattr(graph_mail.requests, "post",
+                        lambda url, headers=None, json=None, timeout=None:
+                        captured.update(json=json) or FakeResp())
+    s = types.SimpleNamespace(simon_workspace_dir=str(ws),
+                              simon_mailbox="simon@x.com")
+    out = graph_mail.send_email_graph(s, "a@b.c", "Report", "See attached",
+                                      attachment_path="documents/report.md")
+    assert "attached: report.md" in out
+    att = captured["json"]["message"]["attachments"][0]
+    assert att["name"] == "report.md"
+    assert base64.b64decode(att["contentBytes"]).startswith(b"# Report")
+
+
+def test_attachment_confined_to_workspace(tmp_path):
+    import types
+    from simon.tools import graph_mail
+    s = types.SimpleNamespace(simon_workspace_dir=str(tmp_path / "ws"),
+                              simon_mailbox="simon@x.com")
+    out = graph_mail.send_email_graph(s, "a@b.c", "x", "y",
+                                      attachment_path="../.env")
+    assert "inside the workspace" in out
+    out = graph_mail.send_email_graph(s, "a@b.c", "x", "y",
+                                      attachment_path="/etc/passwd")
+    assert "inside the workspace" in out
+    out = graph_mail.send_email_graph(s, "a@b.c", "x", "y",
+                                      attachment_path="documents/missing.md")
+    assert "no such workspace file" in out

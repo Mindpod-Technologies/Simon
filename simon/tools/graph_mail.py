@@ -119,8 +119,10 @@ def read_email_graph(s, message_id: str) -> str:
             f"Date: {m.get('receivedDateTime', '')}\n\n{text[:4000]}")
 
 
-def send_email_graph(s, to: str, subject: str, body: str) -> str:
-    """Send an email from Simon's mailbox via Graph."""
+def send_email_graph(s, to: str, subject: str, body: str,
+                     attachment_path: str = "") -> str:
+    """Send an email from Simon's mailbox via Graph, optionally with one
+    workspace file attached (base64 fileAttachment)."""
     to = (to or "").strip()
     if not to or not (subject or "").strip():
         return "graph mail: 'to' and 'subject' are required."
@@ -132,14 +134,54 @@ def send_email_graph(s, to: str, subject: str, body: str) -> str:
         },
         "saveToSentItems": True,
     }
+    attach_note = ""
+    if (attachment_path or "").strip():
+        resolved, err = _resolve_workspace_file(s, attachment_path)
+        if err:
+            return err
+        import base64
+        raw = resolved.read_bytes()
+        if len(raw) > 5 * 1024 * 1024:
+            return ("graph mail: attachment exceeds 5 MB "
+                    f"({resolved.name} is {len(raw) // 1024} KB) — "
+                    "send a link or a smaller export instead.")
+        payload["message"]["attachments"] = [{
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": resolved.name,
+            "contentType": "application/octet-stream",
+            "contentBytes": base64.b64encode(raw).decode("ascii"),
+        }]
+        attach_note = f" (attached: {resolved.name})"
     resp = requests.post(
         f"{_BASE}/users/{s.simon_mailbox}/sendMail",
         headers=_headers(s), json=payload, timeout=30,
     )
     if resp.status_code in (200, 202):
-        log.info("graph mail: sent to=%s subject=%.60s", to, subject)
-        return f"Email sent to {to}: {subject.strip()}"
+        log.info("graph mail: sent to=%s subject=%.60s%s",
+                 to, subject, attach_note)
+        return f"Email sent to {to}: {subject.strip()}{attach_note}"
     return f"graph mail: send failed ({resp.status_code}): {resp.text[:300]}"
+
+
+def _resolve_workspace_file(s, relpath: str):
+    """Resolve an attachment path strictly INSIDE the workspace (never
+    absolute paths or traversal — email must not exfiltrate the machine)."""
+    from pathlib import Path
+    workspace = Path(getattr(s, "simon_workspace_dir", "") or "workspace")
+    root = workspace.resolve()
+    raw = relpath.strip()
+    if raw.startswith("/") or raw.startswith("~"):
+        return None, ("graph mail: attachment path must be inside the "
+                      "workspace — give the path shown under ARTIFACTS "
+                      "(e.g. documents/report.md).")
+    cand = (root / raw).resolve()
+    if root not in cand.parents and cand != root:
+        return None, ("graph mail: attachment path must be inside the "
+                      "workspace — give the path shown under ARTIFACTS "
+                      "(e.g. documents/report.md).")
+    if not cand.is_file():
+        return None, f"graph mail: no such workspace file: {relpath}"
+    return cand, ""
 
 
 def register_graph_mail_tools(registry, settings) -> None:
@@ -178,19 +220,29 @@ def register_graph_mail_tools(registry, settings) -> None:
     ))
     registry.register(Tool(
         name="send_email",
-        description="Send an email from Simon's Microsoft 365 mailbox.",
+        description="Send an email from Simon's Microsoft 365 mailbox. When "
+                    "the user asks to email a document Simon created or was "
+                    "given, pass its workspace path as attachment_path (the "
+                    "path shown under ARTIFACTS, e.g. documents/report.md) — "
+                    "never claim a file is attached without passing it.",
         parameters={
             "type": "object",
             "properties": {
                 "to": {"type": "string", "description": "Recipient address."},
                 "subject": {"type": "string"},
                 "body": {"type": "string"},
+                "attachment_path": {
+                    "type": "string",
+                    "description": "Optional workspace path of a file to "
+                                   "attach (from the ARTIFACTS panel)."},
             },
             "required": ["to", "subject", "body"],
         },
-        func=lambda to="", subject="", body="", **kw: send_email_graph(
+        func=lambda to="", subject="", body="", attachment_path="",
+                    **kw: send_email_graph(
             settings, to or kw.get("recipient", "") or kw.get("address", ""),
-            subject, body),
+            subject, body,
+            attachment_path or kw.get("attachment", "") or kw.get("path", "")),
     ))
     log.info("graph mail tools registered (mailbox: %s)",
              settings.simon_mailbox)
