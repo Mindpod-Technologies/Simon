@@ -46,3 +46,19 @@ as anything else). On success the customer gets: license key email +
   `no-new-privileges`, own volumes — no tenant sees another's memory.
 - Provisioning is idempotent per customer domain and never blocks a Stripe
   fulfillment (a failure logs and the license key still ships).
+
+## Zero-to-cloud bootstrap
+
+On a fresh Ubuntu/Debian VPS, as root:
+
+```bash
+export SIMON_CLOUD_DOMAIN=simonwork.app
+export SIMON_LICENSE_PRIVATE_KEY=<vendor ed25519 hex>
+export LLM_API_KEY=<hosted frontier pool key>
+curl -fsSL https://raw.githubusercontent.com/Mindpod-Technologies/Simon/main/deploy/setup_simon_cloud.sh | bash
+```
+
+The script installs Docker + Caddy, pre-flight-checks wildcard DNS, writes
+the host env, builds the Simon image, installs the billing service
+(systemd), and wires the Caddyfile (billing.<domain> + tenant import).
+Idempotent — re-run it anytime; it preserves existing config.
