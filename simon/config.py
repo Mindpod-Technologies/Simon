@@ -91,6 +91,14 @@ class Settings(BaseSettings):
     # Dedicated browser (Playwright Chromium, persistent profile)
     simon_browser_enabled: bool = True
     simon_browser_headless: bool = True
+    # Browser takeover: when set (e.g. "http://localhost:9222"), attach to the
+    # USER's own Chrome via CDP instead of launching Simon's profile — their
+    # tabs, their logins. Loopback only. See scripts/chrome_debug.sh.
+    simon_browser_cdp_url: str = ""
+    # Sandbox: isolated code execution (Docker container, no network, capped
+    # CPU/RAM, only the workspace mounted). Self-registers only when Docker
+    # is actually present.
+    simon_sandbox_enabled: bool = True
 
     # Scheduled proactive behaviour
     simon_hourly_status: bool = True  # hourly status updates 07:17–23:17

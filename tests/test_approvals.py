@@ -264,3 +264,70 @@ def test_multiple_pending_asks_for_a_number(db):
     assert registry.executed and registry.executed[0][0] == "send_email"
     remaining = approvals.list_pending()
     assert len(remaining) == 1 and "shell" in remaining[0]["summary"]
+
+
+# ---------------------------------------------------------------------------
+# Standing grants ("approve once, always allow")
+# ---------------------------------------------------------------------------
+
+def test_grant_keys_are_exact_and_scoped():
+    assert approvals.grant_key_for("send_email", {"to": "A@B.c"}) == \
+        "send_email:a@b.c"
+    assert approvals.grant_key_for("run_shell",
+                                   {"command": "rm -rf /tmp/x"}) == \
+        "run_shell:rm -rf /tmp/x"
+    assert approvals.grant_key_for("mcp_github_push_files", {}) == \
+        "mcp_github_push_files"
+
+
+def test_classify_decision_always_variants():
+    assert approvals.classify_decision("approve always") == ("approve_always", None)
+    assert approvals.classify_decision("always allow") == ("approve_always", None)
+    assert approvals.classify_decision("approve always 3") == ("approve_always", 3)
+    assert approvals.classify_decision("approve") == ("approve", None)
+
+
+def test_grant_crud_and_revoke(db):
+    key = approvals.add_grant("send_email", {"to": "wife@x.com"},
+                              created_by="owner")
+    assert key == "send_email:wife@x.com"
+    grants = approvals.list_grants()
+    assert len(grants) == 1 and grants[0]["created_by"] == "owner"
+    assert approvals.assess("send_email", {"to": "wife@x.com"}) is None
+    assert approvals.assess("send_email", {"to": "other@x.com"}) is not None
+    assert approvals.revoke_grant(key)
+    assert approvals.assess("send_email", {"to": "wife@x.com"}) is not None
+    assert not approvals.revoke_grant(key)
+
+
+def test_grant_idempotent_reactivate(db):
+    approvals.add_grant("send_email", {"to": "a@b.c"})
+    approvals.revoke_grant("send_email:a@b.c")
+    approvals.add_grant("send_email", {"to": "a@b.c"})
+    assert len(approvals.list_grants()) == 1
+    assert approvals.assess("send_email", {"to": "a@b.c"}) is None
+
+
+def test_approve_always_creates_grant_and_executes(mail_agent):
+    agent, registry = mail_agent
+    agent.handle("email the report to my boss")       # parks
+    reply = agent.handle("approve always")
+    assert registry.executed and registry.executed[0][0] == "send_email"
+    assert "standing approval" in reply.lower()
+    grants = approvals.list_grants()
+    assert grants and grants[0]["grant_key"] == "send_email:boss@corp.com"
+    assert grants[0]["created_by"] == "mail-test"
+
+
+def test_standing_grant_skips_future_approval(mail_agent):
+    agent, registry = mail_agent
+    agent.handle("email the report to my boss")
+    agent.handle("approve always")
+    registry.executed.clear()
+    # A fresh ask for the SAME recipient runs without parking.
+    agent2 = Agent(Settings(), registry=registry, session_id="mail-test",
+                   llm=SensitiveLLM())
+    reply = agent2.handle("email the report to my boss again")
+    assert registry.executed and registry.executed[0][0] == "send_email"
+    assert "say-so" not in reply.lower()
+    assert approvals.pending("mail-test") is None

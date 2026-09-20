@@ -123,6 +123,22 @@ async function load() {
   html += `<section><h2>License</h2><div class="ver">${pill}${who}</div>${lic}
     <p class="note">Paste a purchased key above and restart to upgrade. Keys verify offline — no phone-home.</p></section>`;
 
+  // Standing approvals — "approve once, always allow" grants
+  const grants = await fetch('/api/approvals/grants').then(r=>r.json()).catch(()=>({grants:[]}));
+  html += `<section><h2>Standing approvals</h2>
+    <p class="note">Operations you approved with "approve always" — Simon runs these exact operations without asking again. Revoke anything you no longer trust.</p>
+    <div id="grant-list">` +
+    (grants.grants.length ? grants.grants.map(g => `
+      <div class="ver" style="align-items:flex-start;gap:8px;border-bottom:1px solid var(--border,#16232b);padding:8px 0">
+        <div style="flex:1;min-width:0">
+          <div style="color:var(--accent);font-size:12px">${esc(g.tool)}</div>
+          <div style="font-size:12px;word-break:break-word">${esc(g.pattern || '(any arguments)')}</div>
+          <div class="note" style="margin-top:2px">granted ${esc(g.created_at)}${g.created_by ? ' · via ' + esc(g.created_by) : ''}</div>
+        </div>
+        <button class="ghost grant-del" data-key="${esc(g.grant_key)}">Revoke</button>
+      </div>`).join('') : '<p class="note">No standing approvals. When Simon asks for your go-ahead, answer "approve always" to create one.</p>') +
+    `</div></section>`;
+
   // Memory — Simon's long-term facts
   const facts = await fetch('/api/facts').then(r=>r.json()).catch(()=>({facts:[]}));
   html += `<section><h2>Memory</h2>
@@ -208,6 +224,14 @@ function wire() {
   main.querySelectorAll('.fact-del').forEach(btn => {
     btn.onclick = async () => {
       const res = await fetch('/api/facts/' + encodeURIComponent(btn.dataset.key),
+        {method:'DELETE'});
+      if (res.ok) load();
+    };
+  });
+
+  main.querySelectorAll('.grant-del').forEach(btn => {
+    btn.onclick = async () => {
+      const res = await fetch('/api/approvals/grants/' + encodeURIComponent(btn.dataset.key),
         {method:'DELETE'});
       if (res.ok) load();
     };

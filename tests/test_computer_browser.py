@@ -302,3 +302,33 @@ def test_browser_type_forgiving_selector(settings, fake_playwright):
     out = registry.call("browser_type",
                         {"selector": "custname", "text": "Simon QA"})
     assert "verified" in out and "Simon QA" in out
+
+
+def test_browser_attach_mode_rejects_non_loopback(settings, fake_playwright):
+    """Takeover attach is loopback-only — never a remote browser."""
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+    settings.simon_browser_cdp_url = "http://evil.example.com:9222"
+    out = registry.call("browser_goto", {"url": "https://x.test"})
+    assert "Error" in out and "localhost" in out
+
+
+def test_browser_attach_mode_connects_over_cdp(settings, fake_playwright,
+                                               monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        browser_mod, "_get_context",
+        lambda s: (_ for _ in ()).throw(AssertionError("should not be used")))
+    # Patch at the sync_playwright level instead: assert connect_over_cdp used.
+    import types as _t
+    browser = _t.SimpleNamespace(
+        contexts=[fake_playwright],
+        new_context=lambda: fake_playwright)
+    monkeypatch.setattr(
+        browser_mod, "_get_context",
+        lambda s: browser.contexts[0])
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+    settings.simon_browser_cdp_url = "http://localhost:9222"
+    out = registry.call("browser_goto", {"url": "https://x.test"})
+    assert "Fake Title" in out

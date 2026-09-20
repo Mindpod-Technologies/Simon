@@ -57,18 +57,35 @@ def _shutdown() -> None:
 
 
 def _get_context(settings):
-    """Lazily launch the persistent Chromium context (thread-safe)."""
+    """Lazily launch (or attach) the browser context (thread-safe).
+
+    Two modes:
+    - attach (SIMON_BROWSER_CDP_URL set, e.g. http://localhost:9222): join
+      the USER's own Chrome — their tabs, their logins. Takeover mode.
+    - launch (default): Simon's own persistent Chromium profile.
+    """
     global _pw, _context
     with _lock:
         if _context is not None:
             return _context
         from playwright.sync_api import sync_playwright  # lazy import
 
+        cdp_url = (getattr(settings, "simon_browser_cdp_url", "") or "")
         _pw = sync_playwright().start()
-        _context = _pw.chromium.launch_persistent_context(
-            str(_profile_dir()),
-            headless=getattr(settings, "simon_browser_headless", True),
-        )
+        if cdp_url:
+            # Only loopback attach is permitted — never a remote browser.
+            if not cdp_url.startswith(("http://localhost", "http://127.0.0.1")):
+                raise RuntimeError(
+                    "SIMON_BROWSER_CDP_URL must be a localhost URL")
+            browser = _pw.chromium.connect_over_cdp(cdp_url)
+            contexts = browser.contexts
+            _context = contexts[0] if contexts else browser.new_context()
+            log.info("browser: attached to user Chrome via %s", cdp_url)
+        else:
+            _context = _pw.chromium.launch_persistent_context(
+                str(_profile_dir()),
+                headless=getattr(settings, "simon_browser_headless", True),
+            )
         atexit.register(_shutdown)
         return _context
 

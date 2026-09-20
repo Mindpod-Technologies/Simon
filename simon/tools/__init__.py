@@ -206,6 +206,13 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
             log.warning("job tools unavailable: %s", exc)
 
     try:
+        from . import sandbox_tool
+
+        sandbox_tool.register_sandbox_tool(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("sandbox tool unavailable: %s", exc)
+
+    try:
         from .. import docs
 
         docs.register_docs_tools(registry, settings)

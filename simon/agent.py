@@ -357,8 +357,19 @@ class Agent:
                     tools=[], tool_errors=0, escalated=False,
                     reply_len=len(reply), user_len=len(user_text))
                 return reply
-            if decision == "approve":
+            if decision in ("approve", "approve_always"):
                 approvals.resolve(target["id"], "approved")
+                grant_note = ""
+                if decision == "approve_always":
+                    grant_key = approvals.add_grant(
+                        target["tool"], approvals.decode_args(target),
+                        created_by=self.session_id)
+                    grant_note = (
+                        f"\n\nNoted — I've granted standing approval for "
+                        f"this exact operation (`{grant_key}`). I shall not "
+                        f"ask again unless it changes; you can review or "
+                        f"revoke it in Settings → Standing approvals.")
+                    logger.info("standing grant created: %s", grant_key)
                 logger.info("approval granted — executing %s",
                             target["tool"])
                 t0 = time.monotonic()
@@ -405,6 +416,7 @@ class Agent:
                 if missing:
                     reply = reply.rstrip() + "\n" + "\n".join(
                         f"[artifact:{p}]" for p in missing)
+                reply += grant_note
                 memory.add_message(self.session_id, "assistant", reply)
                 obs.record_event(
                     "turn", interface=self.interface,
@@ -559,8 +571,9 @@ class Agent:
                         reply = (
                             f"One moment, sir — this one needs your say-so: "
                             f"I'd like to **{needs}**. Reply **approve** and "
-                            f"I shall do it at once, or **reject** and I'll "
-                            f"stand down.")
+                            f"I shall do it at once, **approve always** to "
+                            f"grant this exact operation going forward, or "
+                            f"**reject** and I'll stand down.")
                         approval_hold = True
                         logger.info("approval requested for %s",
                                     call["name"])

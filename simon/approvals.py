@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS approvals (
     status TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | rejected
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS approval_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    grant_key TEXT NOT NULL UNIQUE,           -- e.g. 'send_email:a@b.c'
+    tool TEXT NOT NULL,
+    pattern TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 # A pending request older than this is treated as abandoned — the owner has
@@ -55,12 +64,38 @@ _MCP_MUTATION_RE = re.compile(
     r"|comment|invite|publish|deploy|destroy|terminate)",
     re.IGNORECASE)
 
+_GATED_TOOLS = {"send_email", "delegate_dev", "ha_call_service", "run_shell"}
 
-def assess(tool_name: str, args: dict) -> Optional[str]:
-    """Return a human summary if the call needs owner approval, else None."""
+
+def grant_key_for(tool_name: str, args: dict) -> str:
+    """The stable identity of an exact operation, for standing grants.
+
+    send_email → per-recipient; run_shell → the exact command; MCP → the
+    tool itself (all its mutations); others → the tool itself.
+    """
     name = (tool_name or "").strip()
     args = args or {}
+    if name == "send_email":
+        return f"send_email:{(args.get('to') or '').strip().lower()}"
+    if name == "run_shell":
+        return f"run_shell:{str(args.get('command', '')).strip()}"
+    return name
 
+
+def assess(tool_name: str, args: dict) -> Optional[str]:
+    """Return a human summary if the call needs owner approval, else None.
+    Active standing grants clear their exact operations without asking."""
+    name = (tool_name or "").strip()
+    args = args or {}
+    if name not in _GATED_TOOLS and not name.startswith("mcp_"):
+        return None
+    if _has_grant(grant_key_for(name, args)):
+        return None
+    return _assess_ungated(name, args)
+
+
+def _assess_ungated(tool_name: str, args: dict) -> Optional[str]:
+    name = tool_name
     if name == "send_email":
         to = args.get("to", "?")
         subject = args.get("subject", "(no subject)")
@@ -100,6 +135,10 @@ _REJECT_RE = re.compile(
     re.IGNORECASE)
 _DECISION_ID_RE = re.compile(
     r"^\s*(approve|reject)\s*#?(\d+)\s*[.!]?\s*$", re.IGNORECASE)
+_ALWAYS_RE = re.compile(
+    r"^\s*(approve always|always allow|allow always|always approve"
+    r"|approve permanently)\s*#?(\d+)?[.!]?\s*$",
+    re.IGNORECASE)
 
 
 def classify_reply(text: str) -> Optional[str]:
@@ -116,7 +155,11 @@ def classify_reply(text: str) -> Optional[str]:
 def classify_decision(text: str) -> tuple[Optional[str], Optional[int]]:
     """Like classify_reply, but also parses an explicit id: 'approve 3'
     returns ('approve', 3). Used for cross-channel approval when several
-    requests are pending at once."""
+    requests are pending at once. 'approve always' returns 'approve_always'
+    (a standing grant for the exact operation)."""
+    m = _ALWAYS_RE.match(text or "")
+    if m:
+        return "approve_always", (int(m.group(2)) if m.group(2) else None)
     m = _DECISION_ID_RE.match(text or "")
     if m:
         return m.group(1).lower(), int(m.group(2))
@@ -238,3 +281,70 @@ def decode_args(row: dict) -> dict:
         return json.loads(row.get("args_json") or "{}")
     except (TypeError, ValueError):
         return {}
+
+
+# ---------------------------------------------------------------------------
+# Standing grants ("approve once, always allow this exact operation")
+# ---------------------------------------------------------------------------
+
+def _has_grant(grant_key: str, path: Optional[str] = None) -> bool:
+    if not grant_key:
+        return False
+    init_db(path)
+    conn = memory._connect(path)
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM approval_grants WHERE grant_key = ? AND active = 1",
+            (grant_key,)).fetchone()
+        return row is not None
+    finally:
+        conn.close()
+
+
+def add_grant(tool: str, args: dict, created_by: str = "",
+              path: Optional[str] = None) -> str:
+    """Create a standing grant for an exact operation; returns its key."""
+    init_db(path)
+    key = grant_key_for(tool, args)
+    pattern = ""
+    if tool == "send_email":
+        pattern = (args.get("to") or "").strip().lower()
+    elif tool == "run_shell":
+        pattern = str((args or {}).get("command", "")).strip()
+    conn = memory._connect(path)
+    try:
+        conn.execute(
+            "INSERT INTO approval_grants (grant_key, tool, pattern, created_by,"
+            " active) VALUES (?, ?, ?, ?, 1)"
+            " ON CONFLICT(grant_key) DO UPDATE SET active = 1",
+            (key, tool, pattern, created_by))
+        conn.commit()
+    finally:
+        conn.close()
+    return key
+
+
+def list_grants(path: Optional[str] = None) -> list[dict]:
+    init_db(path)
+    conn = memory._connect(path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM approval_grants WHERE active = 1"
+            " ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def revoke_grant(grant_key: str, path: Optional[str] = None) -> bool:
+    """Revoke (deactivate) a grant; False if unknown."""
+    init_db(path)
+    conn = memory._connect(path)
+    try:
+        cur = conn.execute(
+            "UPDATE approval_grants SET active = 0"
+            " WHERE grant_key = ? AND active = 1", (grant_key,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()

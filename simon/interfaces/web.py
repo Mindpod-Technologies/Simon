@@ -392,6 +392,19 @@ def create_app(settings) -> FastAPI:
              "session": p["session_id"], "created_at": p["created_at"]}
             for p in approvals.list_pending()]}
 
+    @app.get("/api/approvals/grants")
+    async def approvals_grants_list():
+        """Standing grants ('approve once, always allow')."""
+        from simon import approvals
+        return {"grants": approvals.list_grants()}
+
+    @app.delete("/api/approvals/grants/{grant_key:path}")
+    async def approvals_grants_revoke(grant_key: str):
+        from simon import approvals
+        if not approvals.revoke_grant(grant_key):
+            return JSONResponse({"error": "no such grant"}, status_code=404)
+        return {"revoked": grant_key}
+
     @app.get("/api/profiles")
     async def profiles_list():
         """Known per-person profiles (session → display name)."""
