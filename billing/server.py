@@ -87,7 +87,10 @@ def plan_for_session(session: dict) -> str:
 def fulfill(session: dict, db_path: Optional[str] = None,
             mailer=None) -> dict:
     """Mint, store and email the key for a completed checkout session.
-    Idempotent on session id. Returns the issued record."""
+    Idempotent on session id. Returns the issued record.
+
+    When SIMON_CLOUD_PROVISION=1, also spins up the customer's hosted
+    tenant (one isolated container + subdomain) and includes its URL."""
     session_id = session.get("id") or ""
     email = ((session.get("customer_details") or {}).get("email")
              or session.get("customer_email") or "")
@@ -100,16 +103,35 @@ def fulfill(session: dict, db_path: Optional[str] = None,
     plan = plan_for_session(session)
     key = keys.make_key(plan, email, keys.expiry_for(plan))
     store.record_issued(session_id, email, plan, key, path=db_path)
+    tenant_url = _maybe_provision(email, plan)
+    body = EMAIL_BODY.format(plan=plan, key=key)
+    if tenant_url:
+        body += (f"\nYour hosted Simon is live at {tenant_url} "
+                 f"(sign in with the owner password we sent separately).\n")
     if mailer is not None:
         try:
-            mailer(email, EMAIL_SUBJECT.format(plan=plan),
-                   EMAIL_BODY.format(plan=plan, key=key))
+            mailer(email, EMAIL_SUBJECT.format(plan=plan), body)
             store.mark_emailed(session_id, path=db_path)
         except Exception:  # noqa: BLE001 - key is stored; email can retry
             log.exception("license email to %s failed", email)
     log.info("issued %s license to %s (session %s)", plan, email, session_id)
     return {"stripe_session": session_id, "email": email, "plan": plan,
-            "license_key": key}
+            "license_key": key, "tenant_url": tenant_url}
+
+
+def _maybe_provision(email: str, plan: str) -> str:
+    """Hosted tier: provision the tenant when SIMON_CLOUD_PROVISION=1.
+    Never blocks fulfillment — a provisioning failure is logged, the key
+    is still delivered."""
+    if os.environ.get("SIMON_CLOUD_PROVISION") != "1":
+        return ""
+    try:
+        from deploy.provision_tenant import Provisioner
+        record = Provisioner().provision(email, plan)
+        return record.get("url", "")
+    except Exception:  # noqa: BLE001
+        log.exception("tenant provisioning failed for %s", email)
+        return ""
 
 
 def _graph_mailer(settings):

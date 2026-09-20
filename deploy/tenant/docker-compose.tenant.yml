@@ -1,0 +1,19 @@
+# Per-tenant compose file — rendered by provision_tenant.py.
+# One isolated Simon per customer: own volume (memory/secrets), own env,
+# own loopback port; the edge proxy (Caddy) maps their subdomain here.
+services:
+  simon:
+    image: ${SIMON_IMAGE}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:${TENANT_PORT}:8788"
+    volumes:
+      - ./data:/app/data
+      - ./workspace:/app/workspace
+    # Tenants get a private slice of the host, not a slice of your box.
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
