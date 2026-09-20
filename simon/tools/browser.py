@@ -107,15 +107,43 @@ def register_browser_tools(registry, settings) -> None:
             return f"Error: browser action failed: {exc}"
 
     def browser_goto(url: str) -> str:
-        """Navigate to a URL; return page title + visible text (first 4000 chars)."""
+        """Navigate to a URL; return page title + visible text + form map."""
         def go(page):
-            page.goto(url)
+            # Slow sites (httpbin at night!) need room; domcontentloaded is
+            # enough — we only need the DOM, not every tracking pixel.
+            page.goto(url, wait_until="domcontentloaded", timeout=90_000)
             title = page.title()
             try:
                 text = page.locator("body").inner_text()
             except Exception:  # noqa: BLE001 - some pages have no body yet
                 text = ""
-            return f"Title: {title}\n\n{text[:_TEXT_CAP]}"
+            # Form map: the model needs real selectors to fill anything.
+            fields = page.evaluate(
+                """() => [...document.querySelectorAll(
+                    'input, textarea, select, button, [role=button]')]
+                   .filter(e => e.offsetParent !== null)
+                   .slice(0, 30)
+                   .map(e => ({tag: e.tagName.toLowerCase(),
+                               type: e.type || '',
+                               name: e.name || '',
+                               id: e.id || '',
+                               text: (e.innerText || e.value || '').trim()
+                                     .slice(0, 40),
+                               placeholder: e.placeholder || ''}))""")
+            field_lines = []
+            for f in fields or []:
+                bits = [f["tag"]]
+                if f.get("type"): bits.append(f"type={f['type']}")
+                if f.get("name"): bits.append(f"name={f['name']}")
+                if f.get("id"): bits.append(f"id={f['id']}")
+                if f.get("text"): bits.append(f"text='{f['text']}'")
+                if f.get("placeholder"): bits.append(f"placeholder='{f['placeholder']}'")
+                field_lines.append("  " + " ".join(bits))
+            out = f"Title: {title}\n\n{text[:_TEXT_CAP]}"
+            if field_lines:
+                out += ("\n\nForm fields (use these selectors with "
+                        "browser_type/browser_click):\n" + "\n".join(field_lines))
+            return out
         return _with_page(go)
 
     def browser_click(selector_or_text: str) -> str:
@@ -132,10 +160,47 @@ def register_browser_tools(registry, settings) -> None:
         return _with_page(do)
 
     def browser_type(selector: str, text: str) -> str:
-        """Fill a form field (CSS selector) with text."""
+        """Fill a form field, then READ IT BACK — filling must never be
+        claimed without verification. Selector is forgiving: exact CSS first,
+        then [name=...], #id, label text, and placeholder text."""
         def do(page):
-            page.locator(selector).first.fill(text)
-            return f"Filled {selector} with {len(text)} characters."
+            candidates = [selector]
+            if not selector.startswith(("#", "[", ".", "input", "textarea",
+                                        "select")):
+                candidates += [f"[name=\"{selector}\"]", f"#{selector}"]
+            candidates += [f"[name=\"{selector.strip('#')}\"]"]
+            tried = []
+            for cand in dict.fromkeys(candidates):
+                loc = None
+                try:
+                    if cand == selector and " " in selector:
+                        loc = page.get_by_label(selector, exact=False).first
+                    else:
+                        loc = page.locator(cand).first
+                    loc.fill(text, timeout=3_000)
+                except Exception:  # noqa: BLE001 - try the next candidate
+                    tried.append(cand)
+                    continue
+                actual = loc.input_value()
+                if actual == text:
+                    return (f"Filled {cand}; verified the field now contains "
+                            f"\"{actual[:80]}\".")
+                return (f"Error: fill of {cand} did not stick — field "
+                        f"contains \"{actual[:80]}\" instead of the intended "
+                        "text. Try browser_click first or browser_eval.")
+            # Last resort: by visible label/placeholder text.
+            try:
+                loc = page.get_by_label(selector, exact=False).first
+                loc.fill(text, timeout=3_000)
+                actual = loc.input_value()
+                if actual == text:
+                    return (f"Filled field labelled '{selector}'; verified "
+                            f"it now contains \"{actual[:80]}\".")
+            except Exception:  # noqa: BLE001
+                pass
+            return (f"Error: no fillable field matched '{selector}' "
+                    f"(tried {', '.join(tried)}, label text). Use the exact "
+                    "name= or id= from browser_goto's Form fields list.")
         return _with_page(do)
 
     def browser_screenshot() -> str:

@@ -137,19 +137,23 @@ class _FakeLocator:
     def click(self, timeout=None):
         return None
 
-    def fill(self, text):
+    def fill(self, text, timeout=None):
         self._page._filled = text
+
+    def input_value(self):
+        return getattr(self._page, "_filled", "")
 
 
 class _FakePage:
     def __init__(self):
         self._text = "Hello from the fake page"
         self._title = "Fake Title"
+        self._fields = []
 
     def set_default_timeout(self, ms):
         return None
 
-    def goto(self, url):
+    def goto(self, url, wait_until=None, timeout=None):
         self.url = url
 
     def title(self):
@@ -162,6 +166,8 @@ class _FakePage:
         return _FakeLocator(self)
 
     def evaluate(self, js):
+        if "querySelectorAll" in js:
+            return self._fields
         return {"js": js}
 
     def screenshot(self, path=None, full_page=False):
@@ -247,3 +253,52 @@ def test_vision_without_openai_returns_none(monkeypatch):
     settings = Settings(simon_computer_vision=True)
     monkeypatch.setitem(sys.modules, "openai", None)  # import fails
     assert vision_mod.describe_image("/nonexistent.png", settings) is None
+
+
+def test_browser_goto_includes_form_map(settings, fake_playwright):
+    """The form map is what lets the model fill fields with real selectors."""
+    fake_playwright.pages[0]._fields = [
+        {"tag": "input", "type": "text", "name": "custname", "id": "",
+         "text": "", "placeholder": "Customer name"},
+        {"tag": "button", "type": "submit", "name": "", "id": "",
+         "text": "Submit order", "placeholder": ""},
+    ]
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+    result = registry.call("browser_goto", {"url": "https://x.test/form"})
+    assert "Form fields" in result
+    assert "name=custname" in result
+    assert "Submit order" in result
+
+
+def test_browser_type_reads_back_the_value(settings, fake_playwright):
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+    out = registry.call("browser_type",
+                        {"selector": "input[name=custname]", "text": "Simon QA"})
+    assert "verified" in out and "Simon QA" in out
+
+
+def test_browser_type_reports_failed_fill(settings, fake_playwright):
+    """If the fill doesn't stick, the tool must say so — never fake success."""
+    fake_playwright.pages[0]._filled = ""  # fill() sets it; force mismatch:
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+
+    class RefusingLocator(_FakeLocator):
+        def fill(self, text, timeout=None):
+            raise RuntimeError("element is not editable")
+    fake_playwright.pages[0].locator = lambda s: RefusingLocator(fake_playwright.pages[0])
+    fake_playwright.pages[0].get_by_label = lambda s, exact=False: RefusingLocator(fake_playwright.pages[0])
+    out = registry.call("browser_type",
+                        {"selector": "#x", "text": "hello"})
+    assert "Error" in out and "no fillable field matched" in out
+
+
+def test_browser_type_forgiving_selector(settings, fake_playwright):
+    """A bare field name ('custname') must resolve to [name=custname]."""
+    registry = ToolRegistry()
+    browser_mod.register_browser_tools(registry, settings)
+    out = registry.call("browser_type",
+                        {"selector": "custname", "text": "Simon QA"})
+    assert "verified" in out and "Simon QA" in out
