@@ -213,6 +213,13 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
         log.warning("sandbox tool unavailable: %s", exc)
 
     try:
+        from . import learn_tool
+
+        learn_tool.register_learn_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("learn tools unavailable: %s", exc)
+
+    try:
         from .. import docs
 
         docs.register_docs_tools(registry, settings)
