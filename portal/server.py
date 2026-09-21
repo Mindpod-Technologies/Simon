@@ -63,8 +63,13 @@ def _customer(token: str) -> Optional[dict]:
 
 
 def _find_license(key: str, db_path: Optional[str]) -> Optional[dict]:
-    """License key → issued-license record (email, plan)."""
-    key = (key or "").strip()
+    """License key → issued-license record (email, plan). Tolerant of
+    paste artifacts: backticks, code fences, quotes, whitespace."""
+    key = (key or "").strip().strip("`").strip().strip('"').strip("'")
+    # If pasted with a ```fence block, pull the SIMON- token out.
+    import re as _re
+    match = _re.search(r"SIMON-[A-Za-z0-9._-]+", key)
+    key = match.group(0) if match else key
     if not key.startswith("SIMON-"):
         return None
     conn = billing_store._connect(db_path)
@@ -121,11 +126,11 @@ def create_app(billing_db: Optional[str] = None) -> FastAPI:
     async def login(key: str = Form("")):
         record = _find_license(key, billing_db)
         if not record:
-            return _page("Sign in", """
+            return HTMLResponse(_page("Sign in", """
 <h1>SIMON CLOUD</h1>
 <div class="card"><p>That key isn't on record — check the purchase email
 and paste the full key. Need help? <a href="/login">try again</a> or email
-support@mindpodtech.com.</p></div>""")
+support@mindpodtech.com.</p></div>"""))
         token = secrets.token_urlsafe(24)
         _SESSIONS[token] = record
         resp = RedirectResponse("/", status_code=303)

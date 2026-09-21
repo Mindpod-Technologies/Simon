@@ -145,3 +145,18 @@ def test_self_host_dashboard_shows_license_only(stack, monkeypatch):
     r = client.post("/login", data={"key": key}, follow_redirects=False)
     r = client.get("/", cookies=r.cookies)
     assert "self-hosted" in r.text and "never phone home" in r.text
+
+
+def test_login_tolerates_paste_artifacts(stack):
+    client, key, _ = stack
+    for mangled in (f"```{key}```", f" {key} ", f"\n{key}\n",
+                    f'"{key}"', f"```\n{key}\n```"):
+        r = client.post("/login", data={"key": mangled},
+                        follow_redirects=False)
+        assert r.status_code == 303, f"rejected paste variant: {mangled[:20]!r}"
+
+
+def test_failed_login_returns_html_not_json(stack):
+    client, _, _ = stack
+    r = client.post("/login", data={"key": "SIMON-pro-bogus.xx"})
+    assert r.headers["content-type"].startswith("text/html")
