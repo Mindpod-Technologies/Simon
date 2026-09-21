@@ -187,3 +187,39 @@ def test_plain_chat_stays_fast(tmp_path, monkeypatch):
     agent, llm = _router_agent(tmp_path, monkeypatch)
     agent.handle("What time is it roughly in Tokyo?")
     assert llm.models_used[0] == "fast"
+
+
+@pytest.mark.parametrize("text", [
+    # Task messages with a tour phrase embedded — the 2026-09-21 regression.
+    "No Im testing your ability to browse a web page while I watch. So I need to test out to see what you can do and what you cannot",
+    "I know what you can do, I need you to drive a browser what do you need to configured and can you test to see I can go to google.com",
+    "tell me what you can do with these files I uploaded",
+    "what can you do about this email I got",
+    "can you go to example.com and show me what you can do there",
+])
+def test_task_messages_with_tour_phrase_pass_through(text):
+    assert not capabilities.is_capability_question(text)
+
+
+@pytest.mark.parametrize("text", [
+    # The tour battery must still match after the veto.
+    "What can you do?",
+    "walk me through your capabilities",
+    "explain some automations that you can do on my behalf?",
+    "how can you help me",
+    "what are your functions",
+])
+def test_tour_battery_still_matches(text):
+    assert capabilities.is_capability_question(text)
+
+
+def test_false_refusal_catches_browser_task():
+    reply = ("I tried to load the page, but I'm unable to invoke it again "
+             "in this turn, so I can't show you a live view.")
+    assert Agent._looks_like_false_refusal(
+        reply, "Lets navigate https://www.google.com")
+    assert Agent._looks_like_false_refusal(
+        "I'm unable to browse that site right now.",
+        "drive the browser to google.com")
+    assert not Agent._looks_like_false_refusal(
+        "The capital of Italy is Rome.", "what is the capital of Italy")

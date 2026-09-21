@@ -91,9 +91,25 @@ _GROUPS = [
      "notes — and learn new ones you drop in."),
 ]
 
+# Task-intent veto: messages that mention "what you can do" WHILE assigning
+# work ("drive a browser", "go to google.com", "email this file") are tasks
+# with the phrase embedded, not tour requests. Without this the intercept
+# swallows real instructions (regression: 2026-09-21).
+_TASK_INTENT_RE = re.compile(
+    r"\b(drive|navigate|browse|browser|go\s+to|open\s+(?:http|www)|"
+    r"https?://|www\.|\.com\b|\.org\b|\.io\b|email|send\b|file\b|pdf|"
+    r"spreadsheet|screenshot|upload|download|test(?:ing|out)?\b)",
+    re.IGNORECASE)
+
 
 def is_capability_question(text: str) -> bool:
-    return bool(CAPABILITY_QUESTION_RE.search((text or "").strip()))
+    text = (text or "").strip()
+    if not text:
+        return False
+    # Task veto first: instructions with a tour phrase embedded are tasks.
+    if _TASK_INTENT_RE.search(text):
+        return False
+    return bool(CAPABILITY_QUESTION_RE.search(text))
 
 
 def capabilities_answer(schemas: list[dict] | None) -> str:

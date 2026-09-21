@@ -1006,7 +1006,12 @@ class Agent:
             "cannot send", "can't send", "unable to send",
             "not able to send", "don't have a mailbox",
             "do not have a mailbox", "no mailbox", "lack a mailbox",
-            "cannot check your mail", "cannot check mail"))
+            "cannot check your mail", "cannot check mail",
+            "unable to invoke", "cannot invoke", "can't invoke",
+            "unable to call", "cannot call the", "unable to use my tools",
+            "cannot use my tools", "unable to open the page",
+            "cannot open the page", "unable to browse",
+            "unable to navigate"))
         if not refusal:
             return False
         low = (user_text or "").lower()
@@ -1014,7 +1019,9 @@ class Agent:
             "file", "folder", "directory", "desktop", "documents",
             "downloads", "list_files", "read_file", "write_file",
             "on my mac", "on this mac",
-            "email", "e-mail", "mail", "inbox", "message"))
+            "email", "e-mail", "mail", "inbox", "message",
+            "browse", "browser", "navigate", "google", "http", "web page",
+            "website", "webpage", "screenshot", "open the page", "url"))
 
     @staticmethod
     def _looks_cut_off(reply: str) -> bool:
