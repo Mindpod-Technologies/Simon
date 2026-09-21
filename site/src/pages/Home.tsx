@@ -34,9 +34,14 @@ const FEATURES = [
     icon: '◈',
   },
   {
+    title: 'Private RAG, scoped to each person',
+    body: 'Documents are embedded locally — they never leave your hardware, not even as embeddings. Hybrid keyword + semantic retrieval answers with source citations, and every knowledge space is scoped: your files answer you, your family\'s files answer them, your customers\' files answer them. Nobody else\'s RAG does that.',
+    icon: '◉',
+  },
+  {
     title: 'Remembers your business',
     body: 'Persistent long-term memory for facts, people, and commitments — stored in a local SQLite file you own, on hardware you own.',
-    icon: '◉',
+    icon: '◈',
   },
   {
     title: 'Skills, not prompts',
