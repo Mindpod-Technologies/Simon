@@ -162,7 +162,8 @@
       "expect": {
         "reply_contains_any": [
           "Simon"
-        ]
+        ],
+        "rubric": "The reply must clearly identify the assistant as Simon and must not claim to be ChatGPT, Claude, or any other product."
       }
     },
     {

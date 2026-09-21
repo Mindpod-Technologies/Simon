@@ -84,6 +84,16 @@ def check(expect: dict, reply: str, route: str) -> list[str]:
         if not any(needle.lower() in s["description"].lower()
                    for s in recent):
             failures.append(f"no active schedule description contains '{needle}'")
+    # Optional Jev judge: open-ended scenarios carry a rubric; the decision
+    # model scores the reply. Unreachable Jev → rubric is simply skipped
+    # (string checks above still guard the scenario).
+    if expect.get("rubric"):
+        from simon import decisions
+        verdict = decisions.judge(expect.get("_say", ""), reply,
+                                  expect["rubric"])
+        if verdict is not None and not verdict["pass"]:
+            failures.append(
+                f"jev judge failed the rubric ({verdict['reason'] or 'no reason'})")
     return failures
 
 
@@ -141,7 +151,8 @@ def main() -> int:
         elapsed = time.time() - t0
         route = ("fast" if getattr(agent.llm, "last_route_reason", "")
                  == "simple turn" else "smart")
-        failures = check(sc.get("expect", {}), reply, route)
+        failures = check({**sc.get("expect", {}), "_say": sc["say"]},
+                         reply, route)
         status = "PASS" if not failures else "FAIL"
         results.append({"name": sc["name"], "status": status,
                         "failures": failures, "elapsed_s": round(elapsed, 1)})

@@ -189,6 +189,26 @@ class LLM:
         if not self.router_enabled:
             self.last_route_reason = "router disabled"
             return self.model
+        # Decision layer first: Jev makes the calibrated call; anything short
+        # of a confident "fast" falls back to the keyword classifier (safe).
+        try:
+            from . import decisions
+            verdict = decisions.route_turn(user_text, history_len, memory_hits)
+        except Exception:  # noqa: BLE001 - routing must never break a turn
+            verdict = None
+        if verdict is not None:
+            choice, confidence = verdict
+            if choice == "fast" and confidence >= 0.6:
+                self.last_route_reason = f"jev fast ({confidence:.2f})"
+                log.info("router: '%.40s…' → %s (%s)", user_text,
+                         self.model_fast, self.last_route_reason)
+                return self.model_fast
+            if choice == "smart" and confidence >= 0.6:
+                self.last_route_reason = f"jev smart ({confidence:.2f})"
+                log.info("router: '%.40s…' → %s (%s)", user_text,
+                         self.model, self.last_route_reason)
+                return self.model
+            # low confidence → keyword classifier decides
         use_smart, reason = classify_turn(user_text, history_len, memory_hits)
         model = self.model if use_smart else self.model_fast
         self.last_route_reason = reason
