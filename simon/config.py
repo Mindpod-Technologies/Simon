@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     # memory-miss turns go to llm_model (the "smart" one).
     llm_model_fast: str = ""
     llm_router_enabled: bool = False
+    # Per-tier context windows for local models — Ollama defaults to a tiny
+    # 4096 num_ctx, which caused recurring context-overflow errors on long
+    # sessions. KV memory grows with these; raise carefully on small GPUs.
+    llm_num_ctx_fast: int = 8192
+    llm_num_ctx_smart: int = 16384
+    # History budget per turn (estimated tokens, chars/4): the agent keeps
+    # the newest turns and drops the oldest beyond this, so long sessions
+    # can never overflow the model's context.
+    llm_history_budget_tokens: int = 6000
 
     # Frontier tier (optional cloud model, e.g. Kimi K3 via Moonshot AI):
     # active only when llm_frontier_api_key is set. Explicit user requests

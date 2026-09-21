@@ -1211,6 +1211,18 @@ class Agent:
         if history and history[-1]["role"] == "user" \
                 and history[-1]["content"] == user_text:
             history = history[:-1]
+        # Context budgeting: long sessions overflowed small local contexts
+        # (recurring 400s) — keep the newest turns, drop the oldest once the
+        # estimated token budget is spent. System prompt, facts and RAG
+        # excerpts are separately bounded and always survive.
+        budget = int(getattr(self.settings, "llm_history_budget_tokens",
+                             6000))
+
+        def _est_tokens(msgs: list[dict]) -> int:
+            return sum(len(str(m.get("content") or "")) for m in msgs) // 4
+
+        while history and _est_tokens(history) > budget:
+            history.pop(0)
         return ([{"role": "system", "content": system_prompt}]
                 + history
                 + [{"role": "user", "content": user_text}])

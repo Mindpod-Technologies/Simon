@@ -137,6 +137,7 @@ class LLM:
 
     def __init__(self, settings: Any) -> None:
         """Create a client from settings (llm_base_url / llm_api_key / llm_model)."""
+        self.settings = settings
         self.model: str = settings.llm_model
         self._client = OpenAI(
             base_url=settings.llm_base_url,
@@ -256,6 +257,15 @@ class LLM:
 
         kwargs = {"model": model, "messages": messages}
         kwargs.update(self._extra)
+        # Per-tier context window: Ollama defaults to a tiny 4096 num_ctx,
+        # which caused recurring context-overflow 400s on long sessions.
+        if "11434" in (self.settings.llm_base_url or ""):
+            num_ctx = (self.settings.llm_num_ctx_fast
+                       if model == self.model_fast
+                       else self.settings.llm_num_ctx_smart)
+            kwargs.setdefault("extra_body", {})
+            kwargs["extra_body"] = {**kwargs["extra_body"],
+                                    "num_ctx": num_ctx}
         if tools:
             kwargs["tools"] = tools
         response = self._client.chat.completions.create(**kwargs)
