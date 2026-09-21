@@ -29,6 +29,59 @@ log = logging.getLogger(__name__)
 
 _TIMEOUT_S = 4.0  # routing must never add meaningful latency
 
+# How to pick a backend (SIMON_DECISION_BACKEND env):
+#   auto (default) — the Jev API when SIMON_JEV_API_KEY is set, else the
+#                    local Laya engine when the package is installed
+#   laya           — force the local Laya decision engine (open source,
+#                    runs on this machine, no API calls, ~30ms/decision)
+#   api            — force the OpenAI-compatible Jev API
+_LAYA_AGENT = None
+
+
+def _backend() -> str:
+    choice = os.environ.get("SIMON_DECISION_BACKEND", "auto").lower()
+    if choice in ("laya", "api"):
+        return choice
+    if os.environ.get("SIMON_JEV_API_KEY", ""):
+        return "api"
+    try:
+        import laya  # noqa: F401
+        return "laya"
+    except ImportError:
+        return "api"
+
+
+def _laya_agent():
+    global _LAYA_AGENT
+    if _LAYA_AGENT is None:
+        import laya
+        _LAYA_AGENT = laya.Agent()
+        log.info("laya decision engine loaded")
+    return _LAYA_AGENT
+
+
+def _laya_route(user_text: str) -> Optional[tuple[str, float]]:
+    """Local Laya verdict: (choice, winning probability) or None."""
+    try:
+        out = _laya_agent().predict(
+            state=f"User: {user_text[:600]}",
+            questions={"tier": {
+                "type": "choice",
+                "instructions": _ROUTE_LAYA_INSTRUCTIONS,
+                "criteria": _ROUTE_LAYA_CRITERIA}})
+    except Exception as exc:  # noqa: BLE001 - decision layer is optional
+        log.info("laya route failed (falling back): %s", exc)
+        return None
+    try:
+        answer = out["answers"]["tier"]
+        probs = answer["probabilities"]
+        choice = max(probs, key=probs.get)
+        if choice not in ("fast", "smart"):
+            return None
+        return choice, float(probs[choice])
+    except (KeyError, TypeError, ValueError):
+        return None
+
 
 def _config() -> tuple[str, str, str]:
     return (
@@ -82,10 +135,27 @@ _ROUTE_SYSTEM = (
     "email, web, files, scheduling, multi-step work, code, research, or "
     "long/complex reasoning. When unsure, choose smart with low confidence.")
 
+_ROUTE_LAYA_INSTRUCTIONS = (
+    "Which assistant tier should handle this user turn? fast answers simple "
+    "conversation directly; smart uses tools (email, files, web, schedules) "
+    "and handles research, reports, and complex work.")
+
+_ROUTE_LAYA_CRITERIA = {
+    "fast": ("casual conversation, greetings, opinions, general knowledge "
+             "questions, math, short factual answers"),
+    "smart": ("checking an inbox or email, reading or writing files or "
+              "documents, web browsing or research, writing reports, "
+              "scheduling or automations, code, multi-step tasks"),
+}
+
 
 def route_turn(user_text: str, history_len: int = 0,
                memory_hits: int = 0) -> Optional[tuple[str, float]]:
-    """('fast'|'smart', confidence) from Jev, or None → keyword fallback."""
+    """('fast'|'smart', confidence) from the decision backend, or None →
+    keyword fallback. Backend: Laya (local) or the Jev API, per
+    SIMON_DECISION_BACKEND."""
+    if _backend() == "laya":
+        return _laya_route(user_text)
     if not enabled():
         return None
     out = _call(_ROUTE_SYSTEM,
@@ -110,8 +180,38 @@ _JUDGE_SYSTEM = (
     '"reason": "<=12 words"}. Judge ONLY against the rubric.')
 
 
+def _laya_judge(user_text: str, reply: str, rubric: str) -> Optional[dict]:
+    """Local Laya verdict via a noul (yes/no) question."""
+    try:
+        out = _laya_agent().predict(
+            state=(f"User request: {user_text[:500]}\n\n"
+                   f"Assistant reply: {reply[:1000]}"),
+            questions={"verdict": {
+                "type": "noul",
+                "instructions": (
+                    "Does the reply PASS this rubric? Answer yes only if it "
+                    f"clearly satisfies it. Rubric: {rubric[:300]}")}})
+    except Exception as exc:  # noqa: BLE001 - decision layer is optional
+        log.info("laya judge failed (skipped): %s", exc)
+        return None
+    try:
+        answer = out["answers"]["verdict"]
+        probs = answer.get("probabilities", {})
+        p_yes = float(probs.get("yes", probs.get(True, 0.0)))
+        return {
+            "pass": p_yes >= 0.5,
+            "score": round(p_yes, 3),
+            "confidence": round(p_yes if p_yes >= 0.5 else 1 - p_yes, 3),
+            "reason": "laya noul verdict",
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def judge(user_text: str, reply: str, rubric: str) -> Optional[dict]:
     """Calibrated pass/fail for an open-ended reply, or None (unreachable)."""
+    if _backend() == "laya":
+        return _laya_judge(user_text, reply, rubric)
     if not enabled():
         return None
     out = _call(_JUDGE_SYSTEM,

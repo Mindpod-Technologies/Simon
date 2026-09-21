@@ -198,13 +198,16 @@ class LLM:
             verdict = None
         if verdict is not None:
             choice, confidence = verdict
-            if choice == "fast" and confidence >= 0.6:
-                self.last_route_reason = f"jev fast ({confidence:.2f})"
+            # 0.65: borderline "fast" verdicts at 0.60–0.61 proved wrong on
+            # real tasks (Laya head-to-head 2026-09-21) — the keyword
+            # classifier is the better tiebreaker at that confidence band.
+            if choice == "fast" and confidence >= 0.65:
+                self.last_route_reason = f"decision fast ({confidence:.2f})"
                 log.info("router: '%.40s…' → %s (%s)", user_text,
                          self.model_fast, self.last_route_reason)
                 return self.model_fast
-            if choice == "smart" and confidence >= 0.6:
-                self.last_route_reason = f"jev smart ({confidence:.2f})"
+            if choice == "smart" and confidence >= 0.65:
+                self.last_route_reason = f"decision smart ({confidence:.2f})"
                 log.info("router: '%.40s…' → %s (%s)", user_text,
                          self.model, self.last_route_reason)
                 return self.model
