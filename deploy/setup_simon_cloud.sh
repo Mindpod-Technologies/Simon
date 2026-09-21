@@ -138,13 +138,41 @@ EOF
 systemctl daemon-reload
 systemctl enable --now simon-billing.service
 
+# --- 6b. Customer portal (systemd) --------------------------------------------
+say "Installing the customer portal…"
+cat > /etc/systemd/system/simon-portal.service <<EOF
+[Unit]
+Description=Simon Cloud customer portal (dashboard + support cases)
+After=network.target docker.service
+
+[Service]
+EnvironmentFile=$HOST_ENV
+Environment=PORTAL_DB=$CLOUD_ROOT/portal.db
+WorkingDirectory=$SRC_DIR
+ExecStart=$CLOUD_ROOT/billing-venv/bin/python -m portal.server
+Restart=always
+RestartSec=5
+StandardOutput=append:$CLOUD_ROOT/logs/portal.out.log
+StandardError=append:$CLOUD_ROOT/logs/portal.err.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now simon-portal.service
+
 # --- 7. Caddy main config ------------------------------------------------------
 if [ -n "$DOMAIN" ]; then
-    say "Writing Caddyfile (billing endpoint + tenant import)…"
+    say "Writing Caddyfile (billing + portal + tenant import)…"
     cat > /etc/caddy/Caddyfile <<EOF
 # Simon Cloud — billing webhook + success pages
 billing.$DOMAIN {
     reverse_proxy 127.0.0.1:8792
+}
+
+# Customer portal (dashboard + support cases)
+portal.$DOMAIN {
+    reverse_proxy 127.0.0.1:8793
 }
 
 # Per-tenant apps (auto-HTTPS per subdomain)
