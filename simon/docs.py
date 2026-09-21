@@ -70,11 +70,13 @@ def extract_text(path: str | Path) -> str:
 
 
 def save_upload(data: bytes, filename: str, settings,
-                ingest: bool = True) -> dict:
+                ingest: bool = True, namespace: str = "") -> dict:
     """Store an uploaded file, extract its text, and ingest into RAG.
 
     Returns ``{"name", "size", "chars", "chunks"}``. ``ingest=False`` skips
-    RAG ingestion (tests). Raises ValueError on unsupported/empty content.
+    RAG ingestion (tests). ``namespace`` scopes who can retrieve the
+    document's chunks ('' = shared). Raises ValueError on
+    unsupported/empty content.
     """
     name = safe_name(filename)
     dest = uploads_dir(settings) / name
@@ -91,9 +93,10 @@ def save_upload(data: bytes, filename: str, settings,
     chunks = 0
     if ingest:
         from . import rag
-        chunks = rag.add_document(extracted_path)
-        log.info("uploaded %s: %d chars, %d RAG chunks", name, len(text),
-                 chunks)
+        chunks = rag.add_document(extracted_path,
+                                  namespace=namespace)
+        log.info("uploaded %s: %d chars, %d RAG chunks (namespace: %s)",
+                 name, len(text), chunks, namespace or "shared")
     return {"name": name, "size": len(data), "chars": len(text),
             "chunks": chunks}
 

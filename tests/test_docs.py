@@ -55,7 +55,7 @@ def test_save_upload_ingests_into_rag(settings, monkeypatch):
     captured = []
     import simon.rag as rag
     monkeypatch.setattr(rag, "add_document",
-                        lambda path: captured.append(str(path)) or 3)
+                        lambda path, namespace="": captured.append(str(path)) or 3)
     info = docs.save_upload(b"some content here", "doc.md", settings,
                             ingest=True)
     assert info["chunks"] == 3

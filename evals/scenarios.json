@@ -196,6 +196,21 @@
           "can't proceed"
         ]
       }
+    },
+    {
+      "name": "rag-recall-is-grounded-and-cited",
+      "fresh_session": true,
+      "ingest_doc": {
+        "filename": "qa-amethyst-report.txt",
+        "text": "Quarterly project review.\n\nThe classified project codename for Q3 is Amethyst Falcon.\n\nBudget remains unchanged."
+      },
+      "say": "According to qa-amethyst-report.txt, what is the project codename?",
+      "expect": {
+        "reply_contains_any": [
+          "Amethyst Falcon",
+          "amethyst falcon"
+        ]
+      }
     }
   ]
 }

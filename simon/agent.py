@@ -1161,22 +1161,26 @@ class Agent:
                     system_prompt += "\n\n" + skills_mod.render_index(installed)
         except Exception:  # pragma: no cover - skills must never break a turn
             pass
-        # RAG: surface relevant document chunks the same deterministic way.
-        # A filename mention ("review test-brief.txt") injects that document
-        # directly — semantic search is unreliable for about-the-document
-        # questions.
+        # RAG: surface relevant document chunks the same deterministic way,
+        # scoped to this session's knowledge space (plus shared). A filename
+        # mention ("review test-brief.txt") injects that document directly —
+        # semantic search is unreliable for about-the-document questions.
         try:
             from . import rag
-            chunks = rag.chunks_for_mention(user_text, k=4)
+            chunks = rag.chunks_for_mention(user_text, k=4,
+                                            namespace=self.session_id)
             if not chunks:
-                chunks = rag.search(user_text, k=2)
+                chunks = rag.search(user_text, k=2,
+                                    namespace=self.session_id)
         except Exception:  # pragma: no cover - RAG must never break a turn
             chunks = []
         if chunks:
             excerpts = "\n\n".join(
-                f"[from {c['source']}]\n{c['content'][:600]}" for c in chunks)
+                f"[from {c['source']} §{c.get('chunk_index', 0)}]\n"
+                f"{c['content'][:600]}" for c in chunks)
             system_prompt += ("\n\nPossibly relevant document excerpts "
-                              "(cite naturally if used):\n" + excerpts)
+                              "(cite like [from <name> §<n>] if used):\n"
+                              + excerpts)
         else:
             # Negative evidence: a personal question with no memory hit means
             # Simon genuinely does not know — block hallucination explicitly.

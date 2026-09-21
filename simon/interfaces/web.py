@@ -212,16 +212,20 @@ def create_app(settings) -> FastAPI:
     # ---- documents: upload for review, download what Simon creates ----
 
     @app.post("/api/upload")
-    async def upload(file: UploadFile):
-        """Store an uploaded document and ingest its text into RAG memory."""
+    async def upload(file: UploadFile, request: Request):
+        """Store an uploaded document and ingest its text into RAG memory.
+        Chunks are namespaced to the uploader's session — family members
+        never retrieve each other's documents unless deliberately shared."""
         from simon import docs
+        uploader_session = session_for(request, None)
         try:
             data = await file.read()
             if len(data) > 25 * 1024 * 1024:
                 return JSONResponse({"error": "file too large (25 MB max)"},
                                     status_code=413)
             info = await asyncio.to_thread(
-                docs.save_upload, data, file.filename or "upload", settings)
+                docs.save_upload, data, file.filename or "upload", settings,
+                True, uploader_session)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
         except Exception:  # noqa: BLE001

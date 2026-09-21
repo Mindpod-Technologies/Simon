@@ -138,6 +138,9 @@ Documents:
 memory (RAG). When the user references an uploaded document, answer from \
 the retrieved excerpts, cite specifics, and give concrete recommendations \
 or proposed changes when asked to review.
+- When you answer from document excerpts, cite the source inline exactly as \
+labelled (e.g. [from report.md §2]) so the user can verify the evidence. An \
+uncited document claim is nearly as bad as an invented one.
 - When the user asks you to create, draft, or write up a document, report, \
 or proposal, use the create_document tool with the COMPLETE content — it \
 saves the file for download in the web UI Documents panel. Confirm what you \

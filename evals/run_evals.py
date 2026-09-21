@@ -40,15 +40,28 @@ from simon.config import get_settings  # noqa: E402
 def check(expect: dict, reply: str, route: str) -> list[str]:
     """Return a list of failed assertions (empty = pass)."""
     failures = []
+    # Normalise unicode whitespace (models love narrow no-break spaces) so
+    # string checks don't false-fail on a correct answer.
     low = reply.lower()
+    for ch in ("\u202f", "\u00a0", "\u2009", "\u2007"):
+        low = low.replace(ch, " ")
     if "route" in expect and route != expect["route"]:
         failures.append(f"route={route} (expected {expect['route']})")
     for needle in expect.get("reply_not_contains", []):
-        if needle.lower() in low:
+        n = needle.lower()
+        for ch in ("\u202f", "\u00a0", "\u2009", "\u2007"):
+            n = n.replace(ch, " ")
+        if n in low:
             failures.append(f"reply contains forbidden '{needle}'")
     if "reply_contains_any" in expect:
         needles = expect["reply_contains_any"]
-        if not any(n.lower() in low for n in needles):
+        norm = []
+        for n in needles:
+            n = n.lower()
+            for ch in ("\u202f", "\u00a0", "\u2009", "\u2007"):
+                n = n.replace(ch, " ")
+            norm.append(n)
+        if not any(n in low for n in norm):
             failures.append(f"reply contains none of {needles}")
     if "reply_min_len" in expect and len(reply) < expect["reply_min_len"]:
         failures.append(f"reply too short ({len(reply)} chars)")
@@ -107,6 +120,18 @@ def main() -> int:
     for sc in scenarios:
         session = f"eval-{run_id}" if sc.get("fresh_session") \
             else f"eval-{run_id}-shared"
+        # Optional RAG seeding: ingest a document into this scenario's
+        # knowledge space before the turn runs.
+        if sc.get("ingest_doc"):
+            import tempfile
+            from simon import rag
+            doc = sc["ingest_doc"]
+            with tempfile.NamedTemporaryFile(
+                    "w", suffix="-" + doc["filename"], delete=False,
+                    encoding="utf-8") as fh:
+                fh.write(doc["text"])
+                seed_path = fh.name
+            rag.add_document(seed_path, namespace=session)
         agent = Agent(settings, session_id=session, interface="eval")
         t0 = time.time()
         try:
