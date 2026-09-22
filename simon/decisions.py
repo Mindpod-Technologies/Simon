@@ -181,7 +181,15 @@ _JUDGE_SYSTEM = (
 
 
 def _laya_judge(user_text: str, reply: str, rubric: str) -> Optional[dict]:
-    """Local Laya verdict via a noul (yes/no) question."""
+    """Local Laya verdict via a noul (yes/no) question.
+
+    Disabled by default (SIMON_DECISION_LAYA_JUDGE=1 to enable): the current
+    checkpoint ships uncalibrated temperatures (vendor clamp warning), and
+    it false-failed a clearly passing reply in the persona eval. Routing is
+    fine; judging needs the calibrated Jev API until proven otherwise.
+    """
+    if os.environ.get("SIMON_DECISION_LAYA_JUDGE") != "1":
+        return None
     try:
         out = _laya_agent().predict(
             state=(f"User request: {user_text[:500]}\n\n"

@@ -29,9 +29,11 @@ def describe_image(path: str, settings, prompt: str | None = None) -> str | None
     try:
         with open(path, "rb") as fh:
             b64 = base64.b64encode(fh.read()).decode("ascii")
-        client = OpenAI(base_url=settings.llm_base_url, api_key=settings.llm_api_key)
+        client = OpenAI(base_url=settings.llm_base_url,
+                        api_key=settings.llm_api_key or "simon-no-key")
         resp = client.chat.completions.create(
-            model=settings.llm_model,
+            model=(getattr(settings, "llm_vision_model", "")
+                   or settings.llm_model),
             messages=[{
                 "role": "user",
                 "content": [
@@ -48,7 +50,11 @@ def describe_image(path: str, settings, prompt: str | None = None) -> str | None
                     },
                 ],
             }],
-            max_tokens=500,
+            # No max_tokens: qwen3.5-vision returns EMPTY content when capped
+            # (verified 2026-09-22). Descriptions are naturally short.
+            # keep_alive 0: vision runs occasionally atop the chat models —
+            # don't keep it resident or total VRAM blows past the box.
+            extra_body={"keep_alive": "0"},
         )
         return (resp.choices[0].message.content or "").strip() or None
     except Exception as exc:  # noqa: BLE001 - vision must never break the tool

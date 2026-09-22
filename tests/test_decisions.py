@@ -166,12 +166,14 @@ def test_laya_backend_soft_fails(monkeypatch):
 
 
 def test_laya_judge_noul(monkeypatch):
+    monkeypatch.setenv("SIMON_DECISION_LAYA_JUDGE", "1")
     _force_laya(monkeypatch, {"yes": 0.93, "no": 0.07})
     verdict = decisions.judge("who are you?", "I am Simon.", "must say Simon")
     assert verdict["pass"] is True and verdict["score"] == 0.93
 
 
 def test_laya_judge_fail(monkeypatch):
+    monkeypatch.setenv("SIMON_DECISION_LAYA_JUDGE", "1")
     _force_laya(monkeypatch, {"yes": 0.1, "no": 0.9})
     verdict = decisions.judge("who are you?", "I am ChatGPT.",
                               "must say Simon")
@@ -182,3 +184,9 @@ def test_auto_backend_prefers_api_key(monkeypatch):
     monkeypatch.setenv("SIMON_JEV_API_KEY", "k")
     monkeypatch.delenv("SIMON_DECISION_BACKEND", raising=False)
     assert decisions._backend() == "api"
+
+
+def test_laya_judge_off_by_default(monkeypatch):
+    """The uncalibrated checkpoint must not judge unless explicitly armed."""
+    _force_laya(monkeypatch, {"yes": 0.93, "no": 0.07})
+    assert decisions.judge("who are you?", "I am Simon.", "must say Simon") is None

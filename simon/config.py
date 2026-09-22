@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # memory-miss turns go to llm_model (the "smart" one).
     llm_model_fast: str = ""
     llm_router_enabled: bool = False
+    # Dedicated vision model for screenshot/image description (browser eyes,
+    # computer use). Multimodal required — text-only models silently return
+    # nothing here. Empty = fall back to llm_model.
+    llm_vision_model: str = ""
     # Per-tier context windows for local models — Ollama defaults to a tiny
     # 4096 num_ctx, which caused recurring context-overflow errors on long
     # sessions. KV memory grows with these; raise carefully on small GPUs.
