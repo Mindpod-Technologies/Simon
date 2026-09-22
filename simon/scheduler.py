@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 BRIEFING_HOUR = 7
 BRIEFING_MINUTE = 30
 REMINDER_POLL_SECONDS = 30
+ONBOARDING_POLL_MINUTES = 20
 EVAL_DAY_OF_WEEK = "sun"
 EVAL_HOUR = 19
 EVAL_MINUTE = 12
@@ -89,6 +90,13 @@ class Scheduler:
             self._poll_reminders,
             IntervalTrigger(seconds=REMINDER_POLL_SECONDS),
             id="poll_reminders",
+            replace_existing=True,
+        )
+        # Onboarding moment: settled new sessions get tailored proposals.
+        self._scheduler.add_job(
+            self._onboarding_proposals,
+            IntervalTrigger(minutes=ONBOARDING_POLL_MINUTES),
+            id="onboarding_proposals",
             replace_existing=True,
         )
         # Inbox watch: poll Simon's M365 mailbox; the agent dedupes against
@@ -174,6 +182,31 @@ class Scheduler:
                     memory.delete_reminder(reminder["id"])
         except Exception:
             logger.exception("Reminder poll failed")
+
+    async def _onboarding_proposals(self) -> None:
+        """The first-day-on-the-job move: settled new sessions get 3–5
+        tailored proposals from their own history, delivered per-person."""
+        if self.agent_factory is None:
+            return
+        from . import onboarding
+        try:
+            for row in onboarding.due_for_proposals():
+                try:
+                    context = onboarding.build_context(row["session_id"])
+                    agent = self.agent_factory()
+                    proposals = await asyncio.to_thread(
+                        agent.handle, onboarding.PROMPT.format(context=context))
+                    if proposals:
+                        self._deliver(row["session_id"], proposals)
+                        logger.info("onboarding proposals delivered to %s",
+                                    row["session_id"])
+                    onboarding.mark_proposed(row["session_id"])
+                except Exception:
+                    logger.exception("onboarding proposals failed for %s",
+                                     row.get("session_id"))
+                    onboarding.mark_proposed(row["session_id"])
+        except Exception:
+            logger.exception("onboarding proposals poll failed")
 
     def _deliver(self, session_id: str, text: str) -> None:
         """Per-person delivery when wired, else the owner channel."""

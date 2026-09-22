@@ -130,6 +130,12 @@ def _build_app(settings):
             return
         session_id = _session_id_for(event, state.settings)
         try:
+            from simon import onboarding
+            if onboarding.mark(session_id, "slack"):
+                log.info("slack session %s onboarded", session_id)
+        except Exception:  # noqa: BLE001 - never break a turn
+            log.exception("onboarding mark failed")
+        try:
             agent = state.agent_for(session_id)
             reply = await asyncio.to_thread(agent.handle, text)
         except Exception:  # noqa: BLE001

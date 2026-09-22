@@ -29,7 +29,9 @@ log = logging.getLogger(__name__)
 
 INTRO = (
     "Good day. Simon at your service — your personal assistant, sir. "
-    "Send me a message or a voice note and I shall attend to it directly."
+    "Message me like a coworker: ask anything, assign work, or put me on a "
+    "schedule. I shall read up on what's here and come back to you with "
+    "ideas for what I could take on."
 )
 APOLOGY = (
     "I do apologise, sir — something went rather wrong on my end. "
@@ -194,6 +196,21 @@ def _capture_profile(update: "Update", settings) -> None:
         log.exception("profile auto-capture failed")
 
 
+def _mark_onboarding(update: "Update", settings) -> None:
+    """First contact marks the session for tailored proposals (the
+    first-day-on-the-job moment)."""
+    try:
+        chat = update.effective_chat
+        if not chat:
+            return
+        from simon import onboarding
+        session = settings.canonical_session("telegram", str(chat.id))
+        if onboarding.mark(session, "telegram"):
+            log.info("session %s onboarded — proposals in ~2h", session)
+    except Exception:  # noqa: BLE001 - onboarding must never break a turn
+        log.exception("onboarding mark failed")
+
+
 def _build_app(settings) -> Application:
     """Build the PTB Application with all handlers registered."""
     state = _TelegramSimon(settings)
@@ -205,6 +222,7 @@ def _build_app(settings) -> Application:
                 update.effective_user.id if update.effective_user else "?",
             )
             return
+        _mark_onboarding(update, settings)
         await update.message.reply_text(INTRO)
 
     async def on_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -231,6 +249,7 @@ def _build_app(settings) -> Application:
             return
         chat_id = update.effective_chat.id
         _capture_profile(update, settings)
+        _mark_onboarding(update, settings)
         try:
             agent = state.agent_for(chat_id)
             reply = agent.handle(update.message.text)
