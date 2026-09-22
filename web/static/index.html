@@ -35,6 +35,61 @@
   #stage { display: flex; height: 100vh; }
   #main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
+  /* ---- presence: 32px working indicator in the header ---- */
+  #presence {
+    width: 28px; height: 28px; border-radius: 50%;
+    opacity: 0.35; filter: saturate(0.6);
+    transition: opacity 0.3s, filter 0.3s, box-shadow 0.3s;
+  }
+  #presence.active, #presence.speaking {
+    opacity: 1; filter: none;
+    box-shadow: 0 0 14px var(--accent-glow);
+  }
+  #presence.speaking { animation: breathe 1.2s ease-in-out infinite; }
+
+  .work-badge {
+    display: inline-block; min-width: 17px; text-align: center;
+    background: var(--accent); color: #06201f;
+    border-radius: 99px; font-size: 10px; font-weight: 700;
+    padding: 1px 5px; margin-left: 5px;
+  }
+  .work-badge[hidden] { display: none; }
+  #docs-panel.collapsed { display: none; }
+  .tray-empty {
+    border: 1px dashed var(--panel-border); border-radius: 12px;
+    padding: 18px 14px; text-align: center; margin-bottom: 14px;
+  }
+  .tray-empty[hidden] { display: none; }
+  #tray-give-ref {
+    background: var(--accent-soft); border: 1px solid rgba(63,198,201,0.3);
+    color: var(--accent); border-radius: 10px; padding: 9px 16px;
+    font-size: 12px; cursor: pointer;
+  }
+  #tray-give-ref:hover { background: rgba(63,198,201,0.2); }
+  .tray-empty-note { font-size: 11px; color: var(--ink-dim); margin-top: 10px; }
+  #docs-panel details { margin-top: 18px; border-top: 1px solid var(--panel-border); padding-top: 12px; }
+  #docs-panel summary {
+    font-size: 10px; letter-spacing: 0.22em; color: var(--ink-dim);
+    cursor: pointer; list-style: none; user-select: none;
+  }
+  #docs-panel summary::-webkit-details-marker { display: none; }
+  #docs-panel summary::before { content: "▸ "; }
+  #docs-panel details[open] summary::before { content: "▾ "; }
+  .decision-item { border-color: rgba(226, 193, 92, 0.35) !important; }
+  .decision-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .decision-actions button {
+    border-radius: 7px; padding: 4px 12px; font-size: 10px;
+    letter-spacing: 0.08em; cursor: pointer;
+  }
+  .decision-approve {
+    background: linear-gradient(135deg, #16494c, #1d5f63);
+    color: var(--ink); border: none;
+  }
+  .decision-reject {
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--panel-border);
+  }
+
   /* ---- top bar ---- */
   header {
     display: flex; align-items: center; gap: 14px;
@@ -226,10 +281,10 @@
   }
   #dock-inner {
     max-width: 780px; margin: 0 auto;
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: flex-end; gap: 10px;
     background: var(--bg-raise);
     border: 1px solid var(--panel-border);
-    border-radius: 16px; padding: 8px 10px 8px 16px;
+    border-radius: 16px; padding: 10px 10px 10px 16px;
     transition: border-color 0.25s, box-shadow 0.25s;
   }
   #dock-inner:focus-within {
@@ -238,9 +293,12 @@
   }
   #input {
     flex: 1; background: transparent; border: none; outline: none;
-    color: var(--ink); font-size: 14px; padding: 8px 0;
+    color: var(--ink); font-size: 14px; padding: 6px 0;
+    font-family: inherit; resize: none; line-height: 1.45;
+    min-height: 66px; max-height: 180px; overflow-y: auto;
   }
   #input::placeholder { color: var(--ink-dim); }
+  #dock-actions { display: flex; align-items: center; gap: 6px; padding-bottom: 2px; }
   .dock-btn {
     background: transparent; border: none; cursor: pointer;
     font-size: 17px; padding: 8px; border-radius: 10px;
@@ -362,6 +420,7 @@
   <div id="main">
     <header>
       <div class="brand"><img src="/static/simon-orb.png" alt="">SIMON</div>
+      <img id="presence" src="/static/simon-orb.png" alt="" title="Simon at work">
       <span id="status">ONLINE</span>
       <div class="spacer"></div>
       <div class="task-bar">
@@ -371,7 +430,7 @@
         </select>
         <button id="new-task" title="Create a new task workspace">+ TASK</button>
       </div>
-      <button id="docs-toggle" title="Toggle workspace panel">WORKSPACE</button>
+      <button id="docs-toggle" title="Open the work tray">WORK <span id="work-count" class="work-badge" hidden>0</span></button>
       <a href="/settings" style="text-decoration:none"><button>SETTINGS</button></a>
     </header>
 
@@ -395,30 +454,44 @@
 
     <div id="dock">
       <div id="dock-inner">
-        <input id="input" type="text" placeholder="How may I assist, sir?"
-               autocomplete="off">
+        <textarea id="input" rows="3"
+                  placeholder="What would you like taken care of?"
+                  autocomplete="off"></textarea>
         <input id="file-input" type="file" hidden>
-        <button class="dock-btn" id="attach" title="Upload a document for Simon">📎</button>
-        <button class="dock-btn" id="mic" title="Hold a voice message">🎤</button>
-        <button id="send">Send</button>
+        <div id="dock-actions">
+          <button class="dock-btn" id="attach" title="Upload a document for Simon">📎</button>
+          <button class="dock-btn" id="mic" title="Record a voice message">🎤</button>
+          <button id="send">Send</button>
+        </div>
       </div>
-      <div id="dock-hint">Type ahead — messages queue while Simon works · markdown renders richly · sensitive actions always ask first</div>
+      <div id="dock-hint">Enter sends · Shift+Enter for a new line · messages queue while Simon works · sensitive actions always ask first</div>
     </div>
   </div>
 
-  <aside id="docs-panel">
-    <h2>WORKSPACE</h2>
+  <aside id="docs-panel" class="collapsed">
+    <h2>WORK TRAY</h2>
     <div id="drop-hint">DROP TO UPLOAD</div>
-    <h3>ARTIFACTS</h3>
+    <div id="tray-empty" class="tray-empty">
+      <button id="tray-give-ref">＋ Give Simon a reference</button>
+      <p class="tray-empty-note">Documents you share and work he produces appear here, ordered by what needs you first.</p>
+    </div>
+    <h3>NEEDS YOUR DECISION</h3>
+    <div id="decisions-list"><span class="docs-empty">Nothing awaiting you.</span></div>
+    <h3>IN PROGRESS</h3>
+    <div id="jobs-list"><span class="docs-empty">No jobs running.</span></div>
+    <h3>READY</h3>
     <div id="artifacts-list"><span class="docs-empty">Nothing created yet.</span></div>
-    <h3>UPLOADED</h3>
-    <div id="uploads-list"><span class="docs-empty">Nothing uploaded yet.</span></div>
-    <h3>BACKGROUND JOBS</h3>
-    <div id="jobs-list"><span class="docs-empty">No jobs yet.</span></div>
+    <div id="finished-jobs-list"></div>
     <h3>AUTOMATIONS</h3>
     <div id="schedules-list"><span class="docs-empty">No recurring automations yet.</span></div>
-    <h3>PLUGINS &amp; CONNECTORS</h3>
-    <div id="plugins-list"><span class="docs-empty">Loading…</span></div>
+    <details id="ref-details">
+      <summary>REFERENCE MATERIAL</summary>
+      <div id="uploads-list"><span class="docs-empty">Nothing uploaded yet.</span></div>
+    </details>
+    <details id="conn-details">
+      <summary>PLUGINS &amp; CONNECTORS</summary>
+      <div id="plugins-list"><span class="docs-empty">Loading…</span></div>
+    </details>
   </aside>
 </div>
 
@@ -476,7 +549,7 @@
   }
 </style>
 
-<script src="/static/app.js?v=1.7.0"></script>
+<script src="/static/app.js?v=1.8.0"></script>
 <script>
   // Suggestion chips: fill the dock and send through the normal path.
   document.querySelectorAll(".chip").forEach(function (chip) {

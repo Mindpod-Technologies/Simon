@@ -17,6 +17,12 @@
   var jobsList = document.getElementById("jobs-list");
   var schedulesList = document.getElementById("schedules-list");
   var pluginsList = document.getElementById("plugins-list");
+  var decisionsList = document.getElementById("decisions-list");
+  var workCount = document.getElementById("work-count");
+  var presence = document.getElementById("presence");
+  var trayEmpty = document.getElementById("tray-empty");
+  var trayGiveRef = document.getElementById("tray-give-ref");
+  var finishedJobsList = document.getElementById("finished-jobs-list");
   var taskSelect = document.getElementById("task-select");
   var newTaskBtn = document.getElementById("new-task");
   var previewModal = document.getElementById("preview-modal");
@@ -36,11 +42,15 @@
 
   function orbThinking(on) {
     orb.classList.toggle("active", on);
-    if (on) orb.classList.remove("speaking");
+    presence.classList.toggle("active", on);
+    if (on) { orb.classList.remove("speaking");
+              presence.classList.remove("speaking"); }
   }
   function orbSpeaking(on) {
     orb.classList.toggle("speaking", on);
-    if (on) orb.classList.remove("active");
+    presence.classList.toggle("speaking", on);
+    if (on) { orb.classList.remove("active");
+              presence.classList.remove("active"); }
   }
 
   function extOf(name) {
@@ -321,17 +331,85 @@
       .catch(function () { /* panel is best-effort */ });
   }
 
+  function updateWorkBadge() {
+    var n = pendingCount + runningCount;
+    workCount.hidden = n === 0;
+    workCount.textContent = n;
+    // A pending decision earns the tray opening itself.
+    if (pendingCount > 0) docsPanel.classList.remove("collapsed");
+    // Tray-empty shows only when there's genuinely nothing in the tray.
+    var anyContent = n > 0 ||
+      artifactsList.querySelector(".doc-item") ||
+      uploadsList.querySelector(".doc-item") ||
+      schedulesList.querySelector(".doc-item");
+    trayEmpty.hidden = !!anyContent;
+  }
+
+  function decideOn(id, decision) {
+    // Decisions route through the normal chat turn (cross-channel approval).
+    input.value = decision + " " + id;
+    document.getElementById("send").click();
+    refreshActivity();
+  }
+
   function refreshActivity() {
+    var pendingCount = 0, runningCount = 0;
+    fetch("/api/approvals")
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var pending = data.pending || [];
+        pendingCount = pending.length;
+        updateWorkBadge();
+        decisionsList.innerHTML = "";
+        if (!pending.length) {
+          decisionsList.innerHTML =
+            '<span class="docs-empty">Nothing awaiting you.</span>';
+          return;
+        }
+        pending.forEach(function (p) {
+          var div = document.createElement("div");
+          div.className = "doc-item decision-item";
+          var nameEl = document.createElement("div");
+          nameEl.className = "name";
+          nameEl.textContent = "#" + p.id + " " + p.summary;
+          var actions = document.createElement("div");
+          actions.className = "decision-actions";
+          var approve = document.createElement("button");
+          approve.className = "decision-approve";
+          approve.textContent = "APPROVE";
+          approve.addEventListener("click", function () {
+            decideOn(p.id, "approve");
+          });
+          var reject = document.createElement("button");
+          reject.className = "decision-reject";
+          reject.textContent = "REJECT";
+          reject.addEventListener("click", function () {
+            decideOn(p.id, "reject");
+          });
+          actions.appendChild(approve);
+          actions.appendChild(reject);
+          div.appendChild(nameEl);
+          div.appendChild(actions);
+          decisionsList.appendChild(div);
+        });
+      })
+      .catch(function () { /* best-effort */ });
     fetch("/api/jobs")
       .then(function (res) { return res.json(); })
       .then(function (data) {
         jobsList.innerHTML = "";
-        if (!data.jobs || !data.jobs.length) {
+        var active = (data.jobs || []).filter(function (j) {
+          return j.status === "running" || j.status === "pending";
+        });
+        var finished = (data.jobs || []).filter(function (j) {
+          return j.status !== "running" && j.status !== "pending";
+        });
+        runningCount = active.length;
+        if (!active.length) {
           jobsList.innerHTML =
-            '<span class="docs-empty">No jobs yet.</span>';
-          return;
+            '<span class="docs-empty">No jobs running.</span>';
         }
-        data.jobs.forEach(function (j) {
+        active.forEach(function (j) {
           var div = document.createElement("div");
           div.className = "doc-item";
           var nameEl = document.createElement("div");
@@ -344,6 +422,22 @@
           div.appendChild(badge);
           jobsList.appendChild(div);
         });
+        // Finished jobs belong in READY (latest first), not "in progress".
+        finishedJobsList.innerHTML = "";
+        finished.slice(0, 3).forEach(function (j) {
+          var div = document.createElement("div");
+          div.className = "doc-item";
+          var nameEl = document.createElement("div");
+          nameEl.className = "name";
+          nameEl.textContent = "#" + j.id + " " + j.description;
+          var badge = document.createElement("span");
+          badge.className = "job-status " + j.status;
+          badge.textContent = j.status.toUpperCase();
+          div.appendChild(nameEl);
+          div.appendChild(badge);
+          finishedJobsList.appendChild(div);
+        });
+        updateWorkBadge();
       })
       .catch(function () { /* best-effort */ });
     fetch("/api/schedules")
@@ -457,8 +551,11 @@
   });
 
   docsToggle.addEventListener("click", function () {
-    docsPanel.classList.toggle("open");
+    docsPanel.classList.toggle("collapsed");   // desktop: hide/show the tray
+    docsPanel.classList.toggle("open");        // mobile: slide in/out
   });
+
+  trayGiveRef.addEventListener("click", function () { fileInput.click(); });
 
   /* ---- artifact preview modal ---- */
 
@@ -774,7 +871,10 @@
 
   sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", function (e) {
-    if (e.key === "Enter") send();
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   });
 
   refreshTasks();
