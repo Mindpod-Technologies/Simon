@@ -120,6 +120,17 @@ def create_app(settings) -> FastAPI:
         response.delete_cookie(auth_mod.COOKIE_NAME)
         return response
 
+    _locks: dict = {}
+
+    def session_lock(session_id: str):
+        """One turn at a time per session — concurrent /api/chat calls for
+        the same session (double-submit, two tabs) used to race the shared
+        Agent instance and interleave memory writes."""
+        import threading
+        if session_id not in _locks:
+            _locks[session_id] = threading.Lock()
+        return _locks[session_id]
+
     def agent_for(session_id: str) -> Agent:
         if session_id not in agents:
             from simon import tasks as tasks_mod
@@ -155,11 +166,20 @@ def create_app(settings) -> FastAPI:
         return settings.simon_web_default_session or uuid.uuid4().hex
 
     @app.get("/")
-    async def index():
+    async def index(request: Request):
         # no-cache: Electron's HTTP cache otherwise pins the shell (and its
         # versioned asset references) across app updates.
-        return FileResponse(STATIC_DIR / "index.html",
+        resp = FileResponse(STATIC_DIR / "index.html",
                             headers={"Cache-Control": "no-cache"})
+        # Persist the session cookie — without it every reload (with no
+        # default session configured) landed on a brand-new random session
+        # and the user lost their chat history.
+        if not request.cookies.get(SESSION_COOKIE) and \
+                not settings.simon_web_default_session:
+            resp.set_cookie(SESSION_COOKIE, uuid.uuid4().hex,
+                            max_age=60 * 60 * 24 * 365, httponly=True,
+                            samesite="lax")
+        return resp
 
     @app.post("/api/chat")
     async def chat(req: ChatRequest, request: Request):
@@ -167,10 +187,12 @@ def create_app(settings) -> FastAPI:
 
         async def stream():
             try:
-                # Run the blocking agent loop off the event loop.
-                reply = await asyncio.to_thread(
-                    agent_for(session_id).handle, req.text
-                )
+                # Run the blocking agent loop off the event loop — one turn
+                # at a time per session (see session_lock).
+                def _turn() -> str:
+                    with session_lock(session_id):
+                        return agent_for(session_id).handle(req.text)
+                reply = await asyncio.to_thread(_turn)
             except Exception:  # noqa: BLE001
                 log.exception("Agent error (session %s)", session_id)
                 reply = (
@@ -239,14 +261,14 @@ def create_app(settings) -> FastAPI:
         return {"files": docs.list_uploads(settings)}
 
     @app.get("/api/documents")
-    async def documents():
+    async def documents(session_id: str | None = None):
         from simon import docs
-        return {"files": docs.list_documents(settings)}
+        return {"files": docs.list_documents(settings_for_session(session_id))}
 
     @app.get("/api/documents/{name}")
-    async def download_document(name: str):
+    async def download_document(name: str, session_id: str | None = None):
         from simon import docs
-        path = docs.resolve_document(settings, name)
+        path = docs.resolve_document(settings_for_session(session_id), name)
         if path is None:
             return JSONResponse({"error": "no such document"},
                                 status_code=404)

@@ -142,6 +142,8 @@ class LLM:
         self._client = OpenAI(
             base_url=settings.llm_base_url,
             api_key=settings.llm_api_key or "simon-no-key",
+            # A hung local server must not wedge the agent turn forever.
+            timeout=getattr(settings, "llm_request_timeout", 180),
         )
         # Ollama: skip hidden chain-of-thought ("thinking") for responsiveness
         # and sample conservatively — a factual assistant should not invent.
@@ -177,6 +179,7 @@ class LLM:
                 base_url=getattr(settings, "llm_frontier_base_url", "")
                 or "https://api.moonshot.ai/v1",
                 api_key=frontier_key,
+                timeout=getattr(settings, "llm_frontier_timeout", 90),
             )
             effort = getattr(
                 settings, "llm_frontier_reasoning_effort", "") or ""

@@ -197,10 +197,15 @@ class Agent:
             r"\b(what|when|where|who|which|how)\b", low)
         # File/tool-intent questions ("what files are on my desktop?") are
         # NOT personal-trivia questions — tools answer them with ground
-        # truth, so the intercept must not deflect them.
+        # truth, so the intercept must not deflect them. The same holds for
+        # tool-backed personal data: calendar, mail, and smart home.
         file_intent = any(k in low for k in (
             "file", "folder", "directory", "desktop", "document",
-            "download", "spreadsheet", "pdf", "screenshot"))
+            "download", "spreadsheet", "pdf", "screenshot",
+            "calendar", "meeting", "event", "appointment", "schedule",
+            "email", "e-mail", "mail", "inbox",
+            "thermostat", "lights", "light ", "temperature",
+            "reminder", "remind"))
         if personal and not file_intent:
             try:
                 fact_hits = memory.search_facts(user_text)
@@ -436,6 +441,7 @@ class Agent:
         artifact_markers: list[str] = []
         escalated = False
         approval_hold = False
+        regenerated = False
         self.last_turn_exhausted = False
         t0 = time.monotonic()
 
@@ -655,8 +661,8 @@ class Agent:
         # and no fetch-type tool ran this turn, do NOT rely on the model
         # choosing to fetch — fetch it ourselves and regenerate the reply
         # from the real content. The model summarises; the system guarantees
-        # the grounding.
-        regenerated = False
+        # the grounding. (regenerated is initialised once at the top of the
+        # turn — resetting it here would erase the explicit-tool path's mark.)
         _FETCH_TOOLS = {"fetch_url", "browser_goto", "web_search"}
         if approval_hold:
             # A sensitive action is parked awaiting the owner's decision —

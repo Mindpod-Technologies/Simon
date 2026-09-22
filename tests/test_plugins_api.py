@@ -114,3 +114,28 @@ def test_plugins_endpoint_accepts_servers_key(client, tmp_path, monkeypatch):
     r = client.get("/api/plugins")
     assert r.status_code == 200
     assert r.json()["mcp_servers"] == ["filesystem", "github"]
+
+
+def test_index_sets_session_cookie_when_no_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    memory.init_db()
+    stored = auth.hash_password("test-owner-pass")
+    monkeypatch.setattr(
+        settings_api, "read_env",
+        lambda path=None: ({"SIMON_OWNER_PASSWORD_HASH": stored}, []))
+
+    class S:
+        simon_workspace_dir = str(tmp_path / "workspace")
+        simon_web_default_session = ""
+        simon_allow_shell = False
+        simon_mcp_config = ""
+
+        def canonical_session(self, interface, supplied):
+            return supplied
+
+    c = TestClient(create_app(S()))
+    c.cookies.set(auth.COOKIE_NAME, auth.make_session(stored))
+    r = c.get("/")
+    assert r.status_code == 200
+    assert "simon_session" in r.headers.get("set-cookie", "")

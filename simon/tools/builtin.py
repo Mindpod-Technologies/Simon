@@ -47,8 +47,14 @@ def _safe_eval(node):
         raise ValueError("only numbers are allowed")
     if isinstance(node, ast.BinOp) and type(node.op) in _BIN_OPS:
         left, right = _safe_eval(node.left), _safe_eval(node.right)
-        if isinstance(node.op, ast.Pow) and abs(right) > 1000:
-            raise ValueError("exponent too large")
+        if isinstance(node.op, ast.Pow):
+            if abs(right) > 1000:
+                raise ValueError("exponent too large")
+            # Bignum denial: a huge base with a big exponent is a memory
+            # bomb even when the exponent itself is under the cap.
+            if isinstance(left, int) and isinstance(right, int) \
+                    and right > 64 and abs(left) > 1e6:
+                raise ValueError("power operands too large")
         return _BIN_OPS[type(node.op)](left, right)
     if isinstance(node, ast.UnaryOp) and type(node.op) in _UNARY_OPS:
         return _UNARY_OPS[type(node.op)](_safe_eval(node.operand))
@@ -89,6 +95,31 @@ def _web_search(query: str) -> str:
 _FETCH_MAX_CHARS = 6000
 
 
+def _is_private_host(url: str) -> bool:
+    """SSRF guard: True when the URL targets loopback/private/link-local/
+    metadata addresses — fetch_url must never read internal services."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    if host in ("localhost", "localhost.localdomain", "metadata.google.internal"):
+        return True
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return False  # unresolvable — the fetch will fail anyway
+    for info in infos:
+        addr = info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if (ip.is_private or ip.is_loopback or ip.is_link_local
+                or ip.is_reserved or ip.is_multicast or ip.is_unspecified):
+            return True
+    return False
+
+
 def _fetch_url(url: str) -> str:
     """Fetch a web page over plain HTTP and extract readable text.
 
@@ -98,6 +129,9 @@ def _fetch_url(url: str) -> str:
     """
     if not re.match(r"^https?://", url or ""):
         url = "https://" + (url or "").lstrip("/")
+    if _is_private_host(url):
+        return ("Error: that address is private or local to this machine — "
+                "I can only fetch public web pages.")
     try:
         import requests
         from bs4 import BeautifulSoup

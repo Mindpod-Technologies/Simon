@@ -28,7 +28,7 @@ class FakeOpenAI:
 
     instances: list = []
 
-    def __init__(self, base_url=None, api_key=None):
+    def __init__(self, base_url=None, api_key=None, **kwargs):
         self.base_url = base_url
         self.api_key = api_key
         self.reply = "ok"
