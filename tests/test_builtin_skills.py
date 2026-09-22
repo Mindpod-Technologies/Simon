@@ -32,3 +32,14 @@ def test_every_shipped_skill_is_wellformed():
 def test_shipped_skill_names_are_unique():
     names = [s.name for s in _real_builtin_skills()]
     assert len(names) == len(set(names)), names
+
+
+def test_outreach_sprint_shipped_and_gated():
+    from simon import skills
+    inst = skills.discover(force=True)
+    names = [s.name for s in inst]
+    assert "outreach-sprint" in names
+    body = skills.load_body("outreach-sprint")
+    assert "NEVER send without explicit approval" in body
+    assert "ingest_note" in body
+    assert len(names) == 10

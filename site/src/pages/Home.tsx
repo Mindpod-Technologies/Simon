@@ -45,7 +45,7 @@ const FEATURES = [
   },
   {
     title: 'Skills, not prompts',
-    body: 'Drop a SKILL.md file into a folder and Simon learns the workflow — briefings, reviews, research reports, decision memos. Nine ship in the box.',
+    body: 'Drop a SKILL.md file into a folder and Simon learns the workflow — briefings, reviews, research reports, decision memos, outreach campaigns. Ten ship in the box.',
     icon: '▣',
   },
   {
@@ -73,7 +73,7 @@ const TIERS = [
     cta: 'Download',
     href: DOWNLOAD_URL,
     featured: false,
-    items: ['Full source, personal use', 'All 9 skills + all interfaces', 'Community support via issues', 'No license key required'],
+    items: ['Full source, personal use', 'All 10 skills + all interfaces', 'Community support via issues', 'No license key required'],
   },
   {
     name: 'Pro',
