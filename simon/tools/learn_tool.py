@@ -48,6 +48,44 @@ def register_learn_tools(registry, settings) -> None:
         except Exception as exc:  # noqa: BLE001 - tools must never raise
             return f"Error: ingest failed: {exc}"
 
+    def teach_skill(name: str, description: str, procedure: str,
+                    overwrite: bool = False) -> str:
+        """Distill a demonstrated workflow into a reusable SKILL.md.
+
+        Writes a customer skill (data/skills/<name>/SKILL.md) — discovered
+        by the skills index immediately and loadable on any future turn.
+        """
+        slug = _safe_name(name)
+        if not slug or slug == "note":
+            return "Error: give the skill a proper name."
+        description = (description or "").strip()
+        procedure = (procedure or "").strip()
+        if len(description) < 10:
+            return "Error: description too short — one line on when to use it."
+        if len(procedure) < 60:
+            return ("Error: procedure too short — write the actual steps "
+                    "(numbered), not a summary.")
+        data_skills = Path("data") / "skills" / slug
+        target = data_skills / "SKILL.md"
+        if target.exists() and not overwrite:
+            return (f"Error: a skill named '{slug}' already exists. Ask the "
+                    "owner whether to replace it, then call teach_skill "
+                    "again with overwrite=true.")
+        try:
+            data_skills.mkdir(parents=True, exist_ok=True)
+            target.write_text(
+                f"---\nname: {slug}\ndescription: {description}\n---\n\n"
+                f"# {slug.replace('-', ' ').title()} Procedure\n\n"
+                f"{procedure}\n",
+                encoding="utf-8")
+            from .. import skills as skills_mod
+            skills_mod.discover(force=True)  # refresh the index now
+            log.info("taught skill %s", slug)
+            return (f"Skill '{slug}' learned and live. Load it anytime with "
+                    f"load_skill — it now appears in the skills index.")
+        except Exception as exc:  # noqa: BLE001 - tools must never raise
+            return f"Error: could not save the skill: {exc}"
+
     registry.register(Tool(
         name="ingest_note",
         description=(
@@ -67,4 +105,28 @@ def register_learn_tools(registry, settings) -> None:
             "required": ["name", "text"],
         },
         func=ingest_note,
+    ))
+
+    registry.register(Tool(
+        name="teach_skill",
+        description=(
+            "Turn a workflow the user just demonstrated in chat into a "
+            "reusable named skill (a SKILL.md the owner can invoke later by "
+            "name). Use ONLY after the user has walked through the steps "
+            "and you have played them back accurately — never distill a "
+            "skill from a vague mention."),
+        parameters={
+            "type": "object",
+            "properties": {
+                "name": {"type": "string",
+                         "description": "Skill slug, e.g. invoice-triage"},
+                "description": {"type": "string",
+                                "description": "One line: when to use it."},
+                "procedure": {"type": "string",
+                              "description": "The numbered steps, in full."},
+                "overwrite": {"type": "boolean", "default": False},
+            },
+            "required": ["name", "description", "procedure"],
+        },
+        func=teach_skill,
     ))
