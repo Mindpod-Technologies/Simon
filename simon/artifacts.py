@@ -45,7 +45,9 @@ def kind_for(path: Path) -> str:
 
 
 def list_artifacts(settings, limit: int = _MAX_LIST) -> list[dict]:
-    """All artifact files under the workspace, newest first."""
+    """All artifact files under the workspace, newest first. Text artifacts
+    carry a readable snippet — the tray shows a title + two-line preview,
+    not a bare filename."""
     root = workspace_root(settings)
     out: list[dict] = []
     for path in sorted(root.rglob("*")):
@@ -63,12 +65,26 @@ def list_artifacts(settings, limit: int = _MAX_LIST) -> list[dict]:
         if path.suffix == ".txt" and path.with_suffix("").exists():
             continue
         stat = path.stat()
+        snippet = ""
+        if path.suffix.lower() in (".md", ".txt", ".csv", ".json", ".log",
+                                   ".py", ".yaml", ".yml", ".html", ".sh"):
+            try:
+                import re as _re
+                raw = path.read_text(encoding="utf-8", errors="replace")
+                lines = [ln.strip() for ln in raw.splitlines()
+                         if ln.strip() and not ln.strip().startswith("#")]
+                # Snippets are plain prose — markdown marks are noise there.
+                plain = _re.sub(r"[*`#>]", "", " ".join(lines))
+                snippet = plain[:180].strip()
+            except OSError:
+                snippet = ""
         out.append({
             "path": rel.as_posix(),
             "name": path.name,
             "size": stat.st_size,
             "modified": int(stat.st_mtime),
             "kind": kind_for(path),
+            "snippet": snippet,
         })
     return sorted(out, key=lambda a: -a["modified"])
 

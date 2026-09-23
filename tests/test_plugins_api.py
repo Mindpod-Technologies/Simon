@@ -139,3 +139,15 @@ def test_index_sets_session_cookie_when_no_default(tmp_path, monkeypatch):
     r = c.get("/")
     assert r.status_code == 200
     assert "simon_session" in r.headers.get("set-cookie", "")
+
+
+def test_artifacts_carry_snippets(tmp_path, monkeypatch):
+    from simon import artifacts
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "report.md").write_text("# Title\n\nFirst line of the report.\n"
+                                  "Second line continues it.")
+    files = artifacts.list_artifacts(
+        __import__("types").SimpleNamespace(simon_workspace_dir=str(ws)))
+    assert files[0]["snippet"].startswith("First line of the report")
+    assert files[0]["kind"] == "document"

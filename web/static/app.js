@@ -71,10 +71,18 @@
   var ARTIFACT_RE = /\[artifact:([^\]\s]+)\]/g;
 
   function appendMarkdown(container, text) {
-    /* Minimal, DOM-safe markdown: bullets, **bold**, *italic*, `code`.
-       Never innerHTML — reply text is untrusted model output. */
+    /* Minimal, DOM-safe markdown: headings, bullets, **bold**, *italic*,
+       `code`. Never innerHTML — reply text is untrusted model output. */
     text.split("\n").forEach(function (line, idx) {
       if (idx) container.appendChild(document.createElement("br"));
+      var heading = /^(#{1,3})\s+(.*)$/.exec(line);
+      if (heading) {
+        var h = document.createElement("strong");
+        h.className = "md-h" + heading[1].length;
+        h.textContent = heading[2];
+        container.appendChild(h);
+        return;
+      }
       var bullet = /^\s*[-*+]\s+/.exec(line);
       if (bullet) {
         container.appendChild(document.createTextNode("• "));
@@ -278,6 +286,42 @@
     return div;
   }
 
+  function humanTitle(path) {
+    /* "bento-digest-2026-09-21.md" → "Bento digest 2026 09 21" */
+    var base = path.split("/").pop().replace(/\.[^.]*$/, "");
+    return base.replace(/[-_]+/g, " ").replace(/\b\w/g,
+      function (c) { return c.toUpperCase(); });
+  }
+
+  function artifactCard(f) {
+    /* Editorial card: title, two-line preview, size, PREVIEW + SAVE. */
+    var div = document.createElement("div");
+    div.className = "doc-item art-card";
+    var title = document.createElement("div");
+    title.className = "art-title";
+    title.textContent = humanTitle(f.path);
+    div.appendChild(title);
+    if (f.snippet) {
+      var snip = document.createElement("div");
+      snip.className = "art-snippet";
+      snip.textContent = f.snippet;
+      div.appendChild(snip);
+    }
+    var meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = (KIND_ICON[f.kind] || KIND_ICON.other) + " " +
+      fmtSize(f.size);
+    div.appendChild(meta);
+    var row = document.createElement("div");
+    row.className = "actions";
+    row.appendChild(actionButton("PREVIEW",
+      function () { openPreview(f.path); }));
+    row.appendChild(actionLink("SAVE", artifactUrl(f.path, true)));
+    div.appendChild(row);
+    div.addEventListener("dblclick", function () { openPreview(f.path); });
+    return div;
+  }
+
   function actionButton(label, onClick) {
     var b = document.createElement("button");
     b.textContent = label;
@@ -322,10 +366,7 @@
           return;
         }
         data.files.forEach(function (f) {
-          artifactsList.appendChild(docItem(f.path, f.size, [
-            actionButton("PREVIEW", function () { openPreview(f.path); }),
-            actionLink("SAVE", artifactUrl(f.path, true))
-          ], KIND_ICON[f.kind] || KIND_ICON.other));
+          artifactsList.appendChild(artifactCard(f));
         });
       })
       .catch(function () { /* panel is best-effort */ });
@@ -562,7 +603,7 @@
   function openPreview(relpath) {
     var name = relpath.split("/").pop();
     var ext = extOf(name);
-    previewTitle.textContent = relpath;
+    previewTitle.textContent = humanTitle(relpath);
     previewDownload.href = artifactUrl(relpath, true);
     previewBody.textContent = "";
     if (IMAGE_EXTS.indexOf(ext) >= 0) {
@@ -575,13 +616,18 @@
       frame.src = artifactUrl(relpath);
       previewBody.appendChild(frame);
     } else if (TEXT_EXTS.indexOf(ext) >= 0) {
-      var pre = document.createElement("pre");
-      pre.textContent = "Loading…";
-      previewBody.appendChild(pre);
+      // The reading pane: rendered markdown, not raw source.
+      var reader = document.createElement("div");
+      reader.className = "reader";
+      reader.textContent = "Loading…";
+      previewBody.appendChild(reader);
       fetch(artifactUrl(relpath))
         .then(function (res) { return res.text(); })
-        .then(function (text) { pre.textContent = text; })
-        .catch(function () { pre.textContent = "Preview unavailable."; });
+        .then(function (text) {
+          reader.textContent = "";
+          appendMarkdown(reader, text);
+        })
+        .catch(function () { reader.textContent = "Preview unavailable."; });
     } else {
       var pre2 = document.createElement("pre");
       pre2.textContent = "No inline preview for this file type — " +

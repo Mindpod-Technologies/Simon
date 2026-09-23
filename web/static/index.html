@@ -379,7 +379,7 @@
   }
   #preview-modal.open { display: flex; }
   #preview-box {
-    width: min(860px, 92vw); max-height: 84vh;
+    width: min(960px, 94vw); max-height: 88vh;
     background: var(--panel); border: 1px solid var(--panel-border);
     border-radius: 16px; display: flex; flex-direction: column;
     box-shadow: 0 0 60px rgba(0,0,0,0.6);
@@ -401,6 +401,27 @@
     font-family: "SF Mono", ui-monospace, monospace;
   }
   #preview-body img { max-width: 100%; border-radius: 10px; }
+  /* ---- editorial reading pane ---- */
+  #preview-body .reader {
+    white-space: normal;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    font-size: 15px; line-height: 1.7; color: #e8f0f4;
+    max-width: 70ch;
+  }
+  .md-h1 { display: block; font-size: 20px; color: #9fe8ea;
+           margin: 18px 0 8px; }
+  .md-h2 { display: block; font-size: 17px; color: #9fe8ea;
+           margin: 14px 0 6px; }
+  .md-h3 { display: block; font-size: 15px; color: #9fe8ea;
+           margin: 12px 0 4px; }
+  .art-card .art-title {
+    font-size: 13px; font-weight: 600; color: var(--ink);
+  }
+  .art-card .art-snippet {
+    font-size: 11.5px; color: var(--ink-dim); margin-top: 3px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
   /* ---- responsive ---- */
   @media (max-width: 900px) {
@@ -549,7 +570,7 @@
   }
 </style>
 
-<script src="/static/app.js?v=1.8.0"></script>
+<script src="/static/app.js?v=1.9.0"></script>
 <script>
   // Suggestion chips: fill the dock and send through the normal path.
   document.querySelectorAll(".chip").forEach(function (chip) {
