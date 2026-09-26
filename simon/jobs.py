@@ -268,6 +268,31 @@ class JobRunner:
                 raise RuntimeError(
                     "job agent exhausted its tool-call budget without "
                     "producing a deliverable")
+            # COMPLETION GATE (Core 2.0 M3): a job result that CLAIMS
+            # completed actions or retrieved content with zero tool receipts
+            # is a fabrication — nobody is watching a background turn, so
+            # the harness enforces it. One gated retry inside the same job
+            # session; still no receipts → fail honestly, never deliver.
+            looks_dishonest = getattr(agent, "_looks_dishonest", None)
+            if (result and callable(looks_dishonest)
+                    and not getattr(agent, "last_turn_tools", [])
+                    and looks_dishonest(result)):
+                logger.warning("job %d: claimed-action result with zero "
+                               "receipts — gate retry", job_id)
+                retry = (agent.handle(
+                    "SYSTEM GATE: your previous reply claimed completed "
+                    "actions or retrieved content, but no tool was actually "
+                    "called — so nothing happened. Either call the tools "
+                    "now and build the deliverable from their real output, "
+                    "or state plainly which step you could not perform and "
+                    "why.") or "").strip()
+                retry_tools = getattr(agent, "last_turn_tools", [])
+                if retry and (retry_tools or not looks_dishonest(retry)):
+                    result = retry
+                else:
+                    raise RuntimeError(
+                        "job claimed completed work without any tool "
+                        "receipts — refusing to deliver a fabricated result")
             if not result:
                 raise RuntimeError("job produced an empty result")
             finish_job(job_id, "done", result=result, path=self.db_path)

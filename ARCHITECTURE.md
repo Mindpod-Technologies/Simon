@@ -228,3 +228,35 @@ Abliterated variants throughout, per the owner's requirement.
 **Revisit trigger:** a hardware upgrade (≥36 GB unified memory) re-opens the
 dense 27B q4_K_L / q5_K class, or a 32B dense model — re-run the A/B
 harness from CHANGES.md §17 before switching.
+
+### ADR-3: Core 2.0 honesty architecture — typed gate over prose guards — 2026-09-26
+
+**Decision:** honesty enforcement is moving from prose-regex inference to
+typed, boolean gates; the older prose guard families stay in place until the
+gate has production soak time on all turn classes.
+
+**What exists now (the three layers):**
+1. *Planner verdict* (`decisions.plan_turn`) — a typed pre-turn decision:
+   does this request require tools, is it multi-step, how confident. A
+   confident tool-required verdict makes receipts MANDATORY and forces the
+   smart tier.
+2. *Completion gate* (`agent.py`, `jobs.py`, `scheduler.py`) — a boolean:
+   a tool-mandatory turn (interactive), or ANY job/scheduled-task/mail-check
+   result that claims completed work, may not deliver with zero tool
+   receipts. Bounded retry; still no receipts → honest failure, never a
+   fabricated deliverable. Format-proof (prose, JSON, or call syntax).
+3. *Assignment state* (`assignments.py`) — accepted multi-step work lives in
+   its own table, injected into the system prompt every turn, so history
+   trimming can never amputate a commitment. Closes on receipts or the
+   owner's explicit cancellation only.
+
+**Why the prose guards stay (for now):** the gate covers planner-flagged
+turns and background harnesses. It does NOT cover fast-tier chat turns,
+planner-unavailable fallbacks (Jev down, non-Laya backends), or refusal
+recovery. The claimed-action, pseudo-call, false-refusal, and cut-off guards
+are the only net under those classes. Deleting them now would reopen the
+exact failure classes they were built for.
+
+**Pruning criterion:** revisit after the gate survives 4+ consecutive clean
+weekly eval runs AND the planner backend covers all production turn classes.
+Until then both layers run; overlap is cheap, a missed fabrication is not.

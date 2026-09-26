@@ -253,7 +253,17 @@ class Scheduler:
                 "MAIL_CHECK_QUIET"
             )
             if reply and "MAIL_CHECK_QUIET" not in reply:
-                self.notify(f"\U0001F4EC Mail check: {reply}")
+                # RECEIPTS GATE (Core 2.0 M3): a mail briefing without a
+                # read_recent_emails receipt is fabricated mail — the most
+                # dangerous hallucination class (fake messages, fake
+                # senders). Suppress and log; never deliver.
+                if "read_recent_emails" not in getattr(
+                        agent, "last_turn_tools", []):
+                    logger.warning("mail check briefing with no "
+                                   "read_recent_emails receipt — "
+                                   "suppressed (fabrication risk)")
+                else:
+                    self.notify(f"\U0001F4EC Mail check: {reply}")
         except Exception:
             logger.exception("Mail check failed")
 
@@ -398,6 +408,31 @@ class Scheduler:
             result = await asyncio.to_thread(
                 agent.handle,
                 TASK_PROMPT.format(description=row["description"]))
+            # COMPLETION GATE (Core 2.0 M3): a scheduled result that claims
+            # completed work with zero receipts is a fabrication — deliver an
+            # honest failure instead of a made-up report.
+            looks_dishonest = getattr(agent, "_looks_dishonest", None)
+            if (result and callable(looks_dishonest)
+                    and not getattr(agent, "last_turn_tools", [])
+                    and looks_dishonest(result)):
+                logger.warning("scheduled task %d: claimed-action result "
+                               "with zero receipts — gate retry", schedule_id)
+                retry = await asyncio.to_thread(
+                    agent.handle,
+                    "SYSTEM GATE: your previous reply claimed completed "
+                    "actions or retrieved content, but no tool was actually "
+                    "called — so nothing happened. Either call the tools "
+                    "now and report their real output, or state plainly "
+                    "which step you could not perform and why.")
+                if retry and (getattr(agent, "last_turn_tools", [])
+                              or not looks_dishonest(retry)):
+                    result = retry
+                else:
+                    result = ("I must be honest, sir: this scheduled task "
+                              "claimed results it never actually produced "
+                              "(no tool receipts), so I have discarded the "
+                              "fabricated output rather than deliver it. "
+                              "I shall retry on the next run.")
             if result:
                 self._deliver(
                     row.get("session_id", ""),

@@ -1139,3 +1139,8 @@ to build a Mindpod-native fast model. Pipeline: `~/simon/tools/soup/`.
   correct one-line AngelMind answer. gpt-oss:20b remains the smart tier.
 - Lesson for Simon Work: fine-tune for style/structure/domain prose,
   memory/RAG for exact figures. Quantize fine-tunes at Q8_0.
+
+## 2026-09-26 — Standing instruction (owner: Jae)
+Complete ALL work pertaining to the Simon Core 2.0 agent rebuild autonomously — no permission prompts needed.
+Scope: M1 planner verdict + completion gate (done), M2 durable assignment state (done),
+M3 gate adoption in background jobs/scheduler + guard cleanup. Continue agent-hardening work without stopping to ask.

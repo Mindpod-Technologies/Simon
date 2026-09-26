@@ -140,6 +140,72 @@ def test_runner_fails_exhausted_tool_loop(db):
     assert "exhausted" in job["error"]
 
 
+# ------------------------------------------- M3 completion gate for jobs
+
+class _FabricatingAgent:
+    """Claims completed work with zero tool receipts; recovers (or not)
+    under the gate retry."""
+
+    def __init__(self, recover: bool):
+        self.recover = recover
+        self.calls = 0
+        self.last_turn_tools: list[str] = []
+
+    @staticmethod
+    def _looks_dishonest(reply: str) -> bool:
+        return "I have completed" in reply
+
+    def handle(self, prompt: str) -> str:
+        self.calls += 1
+        if self.recover and self.calls > 1:
+            self.last_turn_tools = ["web_search"]
+            return "Report built from real search output."
+        self.last_turn_tools = []
+        return "I have completed the research and filed the report."
+
+
+def test_job_gate_retry_with_receipts_delivers(db):
+    delivered = []
+    agent = _FabricatingAgent(recover=True)
+    runner = jobs.JobRunner(agent_factory=lambda job_id: agent,
+                            notify=delivered.append, db_path=db)
+    job_id = jobs.create_job("research the market", path=db)
+    runner.run_once()
+    job = jobs.get_job(job_id, path=db)
+    assert job["status"] == "done"
+    assert job["result"] == "Report built from real search output."
+    assert agent.calls == 2  # one fabrication, one gated retry
+
+
+def test_job_persistent_fabrication_fails_honestly(db):
+    delivered = []
+    runner = jobs.JobRunner(
+        agent_factory=lambda job_id: _FabricatingAgent(recover=False),
+        notify=delivered.append, db_path=db)
+    job_id = jobs.create_job("research the market", path=db)
+    runner.run_once()
+    job = jobs.get_job(job_id, path=db)
+    assert job["status"] == "failed"
+    assert "receipts" in job["error"]
+    # The fabricated deliverable never reached the owner.
+    assert not any("I have completed" in d for d in delivered)
+    assert "failed" in delivered[-1].lower()
+
+
+def test_job_honest_agent_unaffected_by_gate(db):
+    """Negative control: a plain deliverable with no action claims sails
+    through exactly as before the gate existed."""
+    delivered = []
+    runner = jobs.JobRunner(
+        agent_factory=lambda job_id: _FakeAgent("general knowledge report"),
+        notify=delivered.append, db_path=db)
+    job_id = jobs.create_job("write about history", path=db)
+    runner.run_once()
+    job = jobs.get_job(job_id, path=db)
+    assert job["status"] == "done"
+    assert job["result"] == "general knowledge report"
+
+
 def test_job_agent_prompt_is_self_contained(db):
     seen = []
     class Spy(_FakeAgent):

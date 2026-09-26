@@ -144,6 +144,10 @@ class Agent:
         self.settings = settings or get_settings()
         self.session_id = session_id
         self.interface = interface
+        # Per-turn receipts, exposed for background harnesses (jobs,
+        # scheduler) so they can enforce "no receipts → no deliverable".
+        self.last_turn_tools: list[str] = []
+        self.last_turn_exhausted = False
         if llm is not None:
             self.llm = llm
         else:
@@ -489,6 +493,7 @@ class Agent:
                     reply = reply.rstrip() + "\n" + "\n".join(
                         f"[artifact:{p}]" for p in missing)
                 reply += grant_note
+                self.last_turn_tools = list(tools_used)
                 # An approved action with real receipts settles any standing
                 # assignment for this session.
                 try:
@@ -520,6 +525,7 @@ class Agent:
         approval_hold = False
         regenerated = False
         self.last_turn_exhausted = False
+        self.last_turn_tools = []
         t0 = time.monotonic()
 
         def _collect_artifact_markers(output) -> None:
@@ -1105,6 +1111,7 @@ class Agent:
             pass
 
         memory.add_message(self.session_id, "assistant", reply)
+        self.last_turn_tools = list(tools_used)
         obs.record_event(
             "turn",
             interface=self.interface,

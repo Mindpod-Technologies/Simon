@@ -23,6 +23,9 @@ class FakeAgent:
     def __init__(self, reply):
         self._reply = reply
         self.prompts = []
+        # The M3 receipts gate delivers a briefing only when the turn
+        # actually called the mail tool — the real agent sets this per turn.
+        self.last_turn_tools = ["read_recent_emails"]
 
     def handle(self, prompt):
         self.prompts.append(prompt)
