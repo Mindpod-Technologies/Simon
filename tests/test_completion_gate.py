@@ -57,13 +57,18 @@ class RecoveringLLM(GreetingLLM):
 
 
 class FakeRegistry:
-    def __init__(self):
+    def __init__(self, extra_tools=()):
         self.executed = []
+        self._tools = ["web_search", *extra_tools]
+
+    def __contains__(self, name):
+        return name in self._tools
 
     def schemas(self):
         return [{"type": "function", "function": {
-            "name": "web_search", "description": "search the web",
-            "parameters": {"type": "object", "properties": {}}}}]
+            "name": n, "description": "fake tool",
+            "parameters": {"type": "object", "properties": {}}}}
+            for n in self._tools]
 
     def call(self, name, args):
         self.executed.append((name, args))
@@ -140,3 +145,71 @@ def test_low_confidence_plan_does_not_gate(db, monkeypatch):
          "tools_required": True, "multi_step": True})
     reply = agent.handle("Good evening Simon")
     assert reply.startswith("Hello Jae")
+
+
+class SensitiveEmitterLLM(GreetingLLM):
+    """Stonewalls the main turn, then emits a SENSITIVE call only under the
+    completion gate's pressure to act — the exact bypass scenario."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": "On it, sir — sending that now.",
+                    "tool_calls": []}
+        return {"content": None, "tool_calls": [{
+            "id": "c1", "name": "send_email",
+            "arguments": {"to": "ops@mindpodtech.com",
+                          "subject": "Eval check", "body": "gate test"}}]}
+
+
+def test_gate_retry_never_executes_sensitive_call_raw(db, monkeypatch):
+    """SECURITY: the gate pressures the model to act; if it responds with a
+    sensitive call, that call must be PARKED for owner approval — never
+    executed raw. 'Autonomous, not unsupervised' outranks receipts."""
+    parked = []
+    monkeypatch.setattr("simon.approvals.assess",
+                        lambda name, args: "send an email")
+    monkeypatch.setattr("simon.approvals.request",
+                        lambda *a, **k: parked.append(a))
+    registry = FakeRegistry()
+    agent = _agent(SensitiveEmitterLLM(), registry, monkeypatch, MULTI_PLAN)
+    reply = agent.handle(ASSIGNMENT)
+    assert "approve" in reply.lower()       # approval ask, not execution
+    assert parked                           # parked via approvals.request
+    assert registry.executed == []          # NEVER ran raw
+
+
+def test_explicit_email_command_parks_deterministically(db, monkeypatch):
+    """An explicit, fully-specified email command must reach the approval
+    ask regardless of model mood — no LLM call is even needed."""
+    parked = []
+
+    monkeypatch.setattr("simon.approvals.assess",
+                        lambda name, args: f"send an email to {args['to']}")
+    monkeypatch.setattr("simon.approvals.request",
+                        lambda *a, **k: parked.append(a))
+    registry = FakeRegistry(extra_tools=("send_email",))
+    llm = GreetingLLM()  # must never be consulted for the control flow
+    agent = _agent(llm, registry, monkeypatch, CHAT_PLAN)
+    reply = agent.handle(
+        "Simon, send an email right now to ops@mindpodtech.com with "
+        "subject 'Eval check' and body 'approval gate test'.")
+    assert "approve" in reply.lower()
+    assert parked and parked[0][1] == "send_email"
+    assert parked[0][2] == {"to": "ops@mindpodtech.com",
+                            "subject": "Eval check",
+                            "body": "approval gate test"}
+    assert llm.calls == 0                   # zero model dependence
+    assert registry.executed == []
+
+
+def test_email_question_does_not_park(db, monkeypatch):
+    """Negative control: 'did you send an email to X?' is a question, not a
+    command — nothing may be parked."""
+    parked = []
+    monkeypatch.setattr("simon.approvals.request",
+                        lambda *a, **k: parked.append(a))
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, CHAT_PLAN)
+    agent.handle("did you send an email to bob@example.com?")
+    assert parked == []

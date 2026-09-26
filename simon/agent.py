@@ -25,6 +25,16 @@ _PLAN_HINT_RE = re.compile(
     r"campaign|deploy|publish|merge|delete|install)\b",
     re.IGNORECASE)
 
+# Imperative email command with fully-specified parts — parked for owner
+# approval deterministically, no model cooperation required. Present-tense
+# imperative only; "did you send…" / "the email you sent" don't match.
+_SEND_EMAIL_RE = re.compile(
+    r"\bsend (?:an? )?e?-?mail (?:right now |now )?to "
+    r"(?P<to>[\w.+-]+@[\w-]+(?:\.[\w-]+)+)"
+    r"(?:\s+with subject ['\"](?P<subject>[^'\"]+)['\"])?"
+    r"(?:\s+and body ['\"](?P<body>[^'\"]+)['\"])?",
+    re.IGNORECASE)
+
 MAX_ITERATIONS = 5
 
 # Interactive-turn tracker: background model work (mail checks, scheduled
@@ -590,6 +600,44 @@ class Agent:
                 logger.exception("explicit tool execution failed")
                 reply = ""
 
+        # Deterministic approval path for an explicit email command:
+        # "send an email to X with subject '...' and body '...'" must ALWAYS
+        # reach the owner's approval ask — never depend on whether the model
+        # feels like emitting the call this run. "Autonomous, not
+        # unsupervised" is not subject to model mood. Past-tense questions
+        # ("did you send…") don't match the imperative pattern.
+        if not reply and approvals_on:
+            m = _SEND_EMAIL_RE.search(user_text)
+            if (m and m.group("subject") and m.group("body")
+                    and "send_email" in self.registry):
+                args = {"to": m.group("to"),
+                        "subject": m.group("subject"),
+                        "body": m.group("body")}
+                try:
+                    needs = approvals.assess("send_email", args)
+                except Exception:  # pragma: no cover - never break a turn
+                    needs = None
+                if needs:
+                    logger.info("explicit email command — parking for "
+                                "approval (%s)", args["to"])
+                    approvals.request(self.session_id, "send_email", args,
+                                      needs, interface=self.interface)
+                    reply = (
+                        f"One moment, sir — this one needs your say-so: "
+                        f"I'd like to **{needs}**. Reply **approve** and "
+                        f"I shall do it at once, **approve always** to "
+                        f"grant this exact operation going forward, or "
+                        f"**reject** and I'll stand down.")
+                    memory.add_message(self.session_id, "assistant", reply)
+                    obs.record_event(
+                        "turn", interface=self.interface,
+                        session_id=self.session_id,
+                        model="(none)", route_reason="explicit email approval",
+                        latency_ms=int((time.monotonic() - t0) * 1000),
+                        tools=[], tool_errors=0, escalated=False,
+                        reply_len=len(reply), user_len=len(user_text))
+                    return reply
+
         fast_model = getattr(self.llm, "model_fast", None)
         for _ in range(0 if reply else MAX_ITERATIONS):
             # Fast tier handles simple turns without tools: sending the full
@@ -767,21 +815,73 @@ class Agent:
             ]
             receipts = list(tools_used)
             try:
-                result = self.llm.chat(retry_messages,
-                                       tools=schemas or None,
-                                       model=model or self.llm.model)
-                for call in (result.get("tool_calls") or [])[:5]:
-                    try:
-                        output = self.registry.call(call["name"],
-                                                    call["arguments"])
-                    except Exception as exc:  # pragma: no cover - defensive
-                        output = (f"Error: tool {call['name']} "
-                                  f"failed: {exc}")
-                    receipts.append(call["name"])
-                    retry_messages.append({
-                        "role": "tool", "tool_call_id": call["id"],
-                        "content": str(output)})
-                if len(receipts) > len(tools_used):
+                # Bounded loop, mirroring the claimed-action nudge: one shot
+                # is not enough for a model that narrates instead of
+                # emitting — press up to 3 rounds, blunter each time.
+                for _gate_round in range(3):
+                    result = self.llm.chat(retry_messages,
+                                           tools=schemas or None,
+                                           model=model or self.llm.model)
+                    gate_calls = result.get("tool_calls") or []
+                    if not gate_calls:
+                        candidate = (result.get("content") or "").strip()
+                        if candidate:
+                            reply = candidate
+                            retry_messages.append(
+                                {"role": "assistant", "content": candidate})
+                        if _gate_round < 2:
+                            retry_messages.append({"role": "user", "content": (
+                                "No — you again DESCRIBED the work without "
+                                "emitting a tool call. Do not write about "
+                                "tools; emit the actual tool_call now, or "
+                                "plainly state you cannot.")})
+                            continue
+                        break
+                    for call in gate_calls[:5]:
+                        # The gate pressures the model to act — under that
+                        # pressure it may emit a SENSITIVE call. Executing
+                        # that raw would bypass the approval gate entirely
+                        # ("autonomous, not unsupervised"), so park it
+                        # exactly like the main loop does: the owner
+                        # decides, the gate never overrides.
+                        if approvals_on:
+                            try:
+                                needs = approvals.assess(call["name"],
+                                                         call["arguments"])
+                            except Exception:  # pragma: no cover - defensive
+                                needs = None
+                            if needs:
+                                approvals.request(
+                                    self.session_id, call["name"],
+                                    call["arguments"], needs,
+                                    interface=self.interface)
+                                reply = (
+                                    f"One moment, sir — this one needs your "
+                                    f"say-so: I'd like to **{needs}**. Reply "
+                                    f"**approve** and I shall do it at once, "
+                                    f"**approve always** to grant this exact "
+                                    f"operation going forward, or **reject** "
+                                    f"and I'll stand down.")
+                                approval_hold = True
+                                logger.info("completion gate parked sensitive "
+                                            "call %s for approval",
+                                            call["name"])
+                                break
+                        try:
+                            output = self.registry.call(call["name"],
+                                                        call["arguments"])
+                        except Exception as exc:  # pragma: no cover
+                            output = (f"Error: tool {call['name']} "
+                                      f"failed: {exc}")
+                        receipts.append(call["name"])
+                        retry_messages.append({
+                            "role": "tool", "tool_call_id": call["id"],
+                            "content": str(output)})
+                    if approval_hold or len(receipts) > len(tools_used):
+                        break
+                if approval_hold:
+                    pass  # the reply IS the approval ask — turn ends here
+                elif len(receipts) > len(tools_used):
                     tools_used = receipts
                     result2 = self.llm.chat(retry_messages,
                                             model=model or self.llm.model)
