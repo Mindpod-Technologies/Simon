@@ -239,6 +239,32 @@ class Agent:
                     reply_len=len(reply), user_len=len(user_text))
                 return reply
 
+        # Assignment cancellation (Core 2.0 M2): "never mind", "forget it"
+        # and friends deterministically close the session's open assignment
+        # — the commitment ends when the OWNER says so, not when the model
+        # loses track of it.
+        if re.search(
+                r"\b(never\s?mind|forget (it|that|about it)|"
+                r"cancel (that|this|it|the task|the assignment)|"
+                r"drop (it|that)|stop (that|working on (it|that)))\b", low):
+            try:
+                from . import assignments
+                open_asg = assignments.active(self.session_id)
+            except Exception:  # pragma: no cover - never break a turn
+                open_asg = None
+            if open_asg:
+                assignments.close(open_asg["id"], assignments.CANCELLED)
+                reply = (f"Very well, sir — I've set aside the assignment: "
+                         f"{open_asg['goal'][:120]}. Consider it cancelled.")
+                memory.add_message(self.session_id, "assistant", reply)
+                obs.record_event(
+                    "turn", interface=self.interface,
+                    session_id=self.session_id, model="(none)",
+                    route_reason="assignment cancelled", latency_ms=0,
+                    tools=[], tool_errors=0, escalated=False,
+                    reply_len=len(reply), user_len=len(user_text))
+                return reply
+
         # Model router: pick which brain handles this turn. No-op when the
         # router is disabled or a test injects a fake LLM.
         model = None
@@ -319,6 +345,13 @@ class Agent:
                 logger.info("planner: multi-step assignment → smart tier + "
                             "receipts mandatory (%.2f)",
                             plan_verdict["confidence"])
+                # M2: record the commitment durably — history trimming must
+                # never be able to amputate an accepted assignment.
+                try:
+                    from . import assignments
+                    assignments.open_assignment(self.session_id, user_text)
+                except Exception:  # pragma: no cover - never break a turn
+                    pass
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -456,6 +489,16 @@ class Agent:
                     reply = reply.rstrip() + "\n" + "\n".join(
                         f"[artifact:{p}]" for p in missing)
                 reply += grant_note
+                # An approved action with real receipts settles any standing
+                # assignment for this session.
+                try:
+                    from . import assignments
+                    open_asg = assignments.active(self.session_id)
+                    if open_asg:
+                        assignments.record_receipts(open_asg["id"], tools_used)
+                        assignments.close(open_asg["id"], assignments.DONE)
+                except Exception:  # pragma: no cover - never break a turn
+                    pass
                 memory.add_message(self.session_id, "assistant", reply)
                 obs.record_event(
                     "turn", interface=self.interface,
@@ -699,6 +742,13 @@ class Agent:
                 and not tools_used and reply):
             logger.warning("completion gate: tool-mandatory turn answered "
                            "with zero receipts — bounded retry")
+            # Name the candidate tools explicitly — an unnamed "call tools"
+            # nudge left the model guessing which ones exist.
+            _gate_tools = ", ".join(sorted(
+                s["function"]["name"] for s in (schemas or [])
+                if isinstance(s, dict) and "function" in s))[:600]
+            _gate_hint = (f" Available tools include: {_gate_tools}."
+                          if _gate_tools else "")
             retry_messages = messages + [
                 {"role": "assistant", "content": reply},
                 {"role": "user", "content": (
@@ -707,7 +757,7 @@ class Agent:
                     "tools that actually perform the assignment NOW (one or "
                     "more real tool calls), or state plainly which exact step "
                     "you cannot do and why. Do not re-describe the task — "
-                    "act on it.")},
+                    "act on it." + _gate_hint)},
             ]
             receipts = list(tools_used)
             try:
@@ -1042,6 +1092,18 @@ class Agent:
                          f"{still['summary']} — reply **approve** or "
                          f"**reject**.)*")
 
+        # Assignment settlement (Core 2.0 M2): real receipts close the
+        # standing commitment as done; zero receipts leaves it OPEN, so the
+        # next turn's system prompt still carries the unfinished task.
+        try:
+            from . import assignments
+            open_asg = assignments.active(self.session_id)
+            if open_asg and tools_used:
+                assignments.record_receipts(open_asg["id"], tools_used)
+                assignments.close(open_asg["id"], assignments.DONE)
+        except Exception:  # pragma: no cover - never break a turn
+            pass
+
         memory.add_message(self.session_id, "assistant", reply)
         obs.record_event(
             "turn",
@@ -1295,6 +1357,14 @@ class Agent:
                     "conversation were answered. Example of a correct reply: "
                     "\"I don't have that on record, sir — tell me and I "
                     "shall remember it.\" Do not guess.")
+        # Active assignment (Core 2.0 M2): a standing commitment lives
+        # OUTSIDE trimmable history — inject it into the system prompt so
+        # context budgeting can never amputate what Simon agreed to do.
+        try:
+            from . import assignments
+            system_prompt += assignments.render_active(self.session_id)
+        except Exception:  # pragma: no cover - never break a turn
+            pass
         history = memory.get_history(self.session_id, limit=40)
         # Drop the just-persisted user message; it is appended explicitly so
         # the current turn is guaranteed to be present exactly once.
