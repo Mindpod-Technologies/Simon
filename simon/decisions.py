@@ -148,6 +148,62 @@ _ROUTE_LAYA_CRITERIA = {
               "scheduling or automations, code, multi-step tasks"),
 }
 
+_PLAN_LAYA_CRITERIA = {
+    "chat": ("a question or conversation the assistant can answer directly "
+             "from knowledge — no tool needed"),
+    "tool_single": ("one clear action needing a tool: one file, one email, "
+                    "one search, one lookup"),
+    "tool_multi": ("a multi-part or multi-step assignment: research then "
+                   "write, create then send, build then deliver, several "
+                   "deliverables or recipients, or a format requirement "
+                   "like Word/PDF/PRD"),
+}
+
+
+def plan_turn(user_text: str) -> Optional[dict]:
+    """Typed PLAN verdict before routing: does this turn need tools, and is
+    it multi-step? Returns {"choice", "confidence", "tools_required",
+    "multi_step"} or None → caller keeps the keyword path (conservative).
+
+    This is the completion-gate planner: a confident multi_step/tools
+    verdict forces the smart tier AND makes tool receipts mandatory before
+    the turn may answer. Test seam: under pytest it returns None unless a
+    test injects a verdict explicitly (the gate's own tests monkeypatch
+    this function) — the suite must never pay for or flake on the real
+    planner model.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return None
+    if _backend() != "laya":
+        return None  # API planner ships with the Jev key; Laya is local.
+    try:
+        out = _laya_agent().predict(
+            state=f"User: {user_text[:600]}",
+            questions={"plan": {
+                "type": "choice",
+                "instructions": (
+                    "Classify what the assistant must do for this user "
+                    "message to be handled correctly."),
+                "criteria": _PLAN_LAYA_CRITERIA}})
+    except Exception as exc:  # noqa: BLE001 - decision layer is optional
+        log.info("laya plan failed (falling back): %s", exc)
+        return None
+    try:
+        answer = out["answers"]["plan"]
+        probs = answer["probabilities"]
+        choice = max(probs, key=probs.get)
+        if choice not in _PLAN_LAYA_CRITERIA:
+            return None
+        confidence = float(probs[choice])
+        return {
+            "choice": choice,
+            "confidence": confidence,
+            "tools_required": choice != "chat",
+            "multi_step": choice == "tool_multi",
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
 
 def route_turn(user_text: str, history_len: int = 0,
                memory_hits: int = 0) -> Optional[tuple[str, float]]:

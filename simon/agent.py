@@ -16,6 +16,15 @@ from .persona import SIMON_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 
+_PLAN_HINT_RE = re.compile(
+    r"\b(research|report|design|prd|email|send|file|document|"
+    r"spreadsheet|pdf|search|fetch|browse|navigate|schedule|automat|"
+    r"create|build|write|draft|review|analyz|summariz|download|"
+    r"upload|screenshot|calculat|inbox|calendar|meeting|remind|"
+    r"github|repo|chart|slide|deck|translat|invoice|outreach|"
+    r"campaign|deploy|publish|merge|delete|install)\b",
+    re.IGNORECASE)
+
 MAX_ITERATIONS = 5
 
 # Interactive-turn tracker: background model work (mail checks, scheduled
@@ -285,6 +294,31 @@ class Agent:
                         r"\s?up|look up)\b", low_text)):
                 model = self.llm.model
                 self.llm.last_route_reason = "explicit search request"
+
+        # PLAN verdict (Core 2.0 completion gate): a typed decision BEFORE
+        # the turn runs — does this require tools, and is it multi-step?
+        # A confident verdict forces the smart tier AND makes tool receipts
+        # mandatory before the turn may deliver an answer. Cheap hint first:
+        # obvious chat never pays for the planner model call.
+        tool_mandatory = False
+        plan_verdict = None
+        if re.search(_PLAN_HINT_RE, user_text):
+            try:
+                from . import decisions
+                plan_verdict = decisions.plan_turn(user_text)
+            except Exception:  # pragma: no cover - never break a turn
+                plan_verdict = None
+        if (plan_verdict
+                and plan_verdict.get("confidence", 0) >= 0.65
+                and plan_verdict.get("tools_required")):
+            tool_mandatory = True
+            if plan_verdict.get("multi_step"):
+                model = self.llm.model
+                self.llm.last_route_reason = (
+                    f"plan multi-step ({plan_verdict['confidence']:.2f})")
+                logger.info("planner: multi-step assignment → smart tier + "
+                            "receipts mandatory (%.2f)",
+                            plan_verdict["confidence"])
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -657,6 +691,56 @@ class Agent:
 
         reply = reply or "Very good, sir. (No further response was required.)"
 
+        # COMPLETION GATE (Core 2.0): a planner-marked tool-mandatory turn
+        # may not deliver an answer with zero receipts. Six prose-regex
+        # families tried to infer "did an action happen" from wording — the
+        # gate is a boolean and format-proof (prose, JSON, or call syntax).
+        if (tool_mandatory and not approval_hold
+                and not tools_used and reply):
+            logger.warning("completion gate: tool-mandatory turn answered "
+                           "with zero receipts — bounded retry")
+            retry_messages = messages + [
+                {"role": "assistant", "content": reply},
+                {"role": "user", "content": (
+                    "SYSTEM GATE: that reply completes nothing — the request "
+                    "requires real tool actions and you called none. Call the "
+                    "tools that actually perform the assignment NOW (one or "
+                    "more real tool calls), or state plainly which exact step "
+                    "you cannot do and why. Do not re-describe the task — "
+                    "act on it.")},
+            ]
+            receipts = list(tools_used)
+            try:
+                result = self.llm.chat(retry_messages,
+                                       tools=schemas or None,
+                                       model=model or self.llm.model)
+                for call in (result.get("tool_calls") or [])[:5]:
+                    try:
+                        output = self.registry.call(call["name"],
+                                                    call["arguments"])
+                    except Exception as exc:  # pragma: no cover - defensive
+                        output = (f"Error: tool {call['name']} "
+                                  f"failed: {exc}")
+                    receipts.append(call["name"])
+                    retry_messages.append({
+                        "role": "tool", "tool_call_id": call["id"],
+                        "content": str(output)})
+                if len(receipts) > len(tools_used):
+                    tools_used = receipts
+                    result2 = self.llm.chat(retry_messages,
+                                            model=model or self.llm.model)
+                    candidate = (result2.get("content") or "").strip()
+                    if candidate:
+                        reply = candidate
+                else:
+                    reply = (
+                        "I must be straight with you, sir: that assignment "
+                        "needs real actions, and I could not complete them "
+                        "this turn — so nothing has been done. Ask me again "
+                        "and I shall take it step by step.")
+            except Exception:
+                logger.exception("completion gate retry failed")
+
         # Deterministic URL grounding: when the user's message contains a URL
         # and no fetch-type tool ran this turn, do NOT rely on the model
         # choosing to fetch — fetch it ourselves and regenerate the reply
@@ -711,7 +795,7 @@ class Agent:
         # so the user's request genuinely happens. Runs BEFORE the
         # claimed-action guard: a written call is an intent we can fulfil
         # directly, no nudging required.
-        if not approval_hold and not tools_used:
+        if not approval_hold and not tool_mandatory and not tools_used:
             pseudo = self._extract_pseudo_call(reply)
             if pseudo is not None:
                 pname, pargs = pseudo
@@ -751,7 +835,7 @@ class Agent:
         # If the final reply looks dishonest and no tool ran this turn,
         # retry with an explicit correction nudge, re-nudging while the
         # model keeps narrating instead of calling tools.
-        if (not approval_hold and not tools_used
+        if (not approval_hold and not tool_mandatory and not tools_used
                 and self._looks_dishonest(reply)):
             logger.warning("claimed-action reply without tool call — nudging")
             nudge_messages = messages + [
