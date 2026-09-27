@@ -251,7 +251,27 @@ class LLM:
             kwargs.update(self._frontier_extra)
             if tools:
                 kwargs["tools"] = tools
-            response = self._frontier_client.chat.completions.create(**kwargs)
+            response = None
+            # Admission-control 503s ("chat_admission_busy — retry shortly")
+            # killed a live job turn on 2026-09-27; the error itself says to
+            # retry. Bounded backoff, then let the caller's failure paths
+            # handle it.
+            last_exc: Optional[Exception] = None
+            for attempt in range(3):
+                try:
+                    response = (self._frontier_client.chat.completions
+                                .create(**kwargs))
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+                    if attempt < 2 and ("admission" in str(exc).lower()
+                                        or "503" in str(exc)):
+                        import time as _time
+                        _time.sleep(8 * (attempt + 1))
+                        continue
+                    raise
+            if response is None and last_exc is not None:
+                raise last_exc
             self._log_usage(model, response)
             if not response.choices:
                 return {"content": None, "tool_calls": []}
