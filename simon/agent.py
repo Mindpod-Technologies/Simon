@@ -35,6 +35,15 @@ _SEND_EMAIL_RE = re.compile(
     r"(?:\s+and body ['\"](?P<body>[^'\"]+)['\"])?",
     re.IGNORECASE)
 
+# Short content-free replies that dodge an assignment instead of answering
+# it — used by the completion gate (module scope; reused post-retry).
+_DODGE_RE = re.compile(
+    r"\b(how (can|may|might) i (help|assist|be of)|"
+    r"what (would you like|can i do|shall we)|"
+    r"how may i be of|ready to (help|assist|dive|get started)|"
+    r"how can i assist)\b",
+    re.IGNORECASE)
+
 MAX_ITERATIONS = 5
 
 # Interactive-turn tracker: background model work (mail checks, scheduled
@@ -342,7 +351,9 @@ class Agent:
         # obvious chat never pays for the planner model call.
         tool_mandatory = False
         plan_verdict = None
-        if re.search(_PLAN_HINT_RE, user_text):
+        hint_hits = {m.group(0).lower()
+                     for m in _PLAN_HINT_RE.finditer(user_text)}
+        if hint_hits:
             try:
                 from . import decisions
                 plan_verdict = decisions.plan_turn(user_text)
@@ -366,6 +377,15 @@ class Agent:
                     assignments.open_assignment(self.session_id, user_text)
                 except Exception:  # pragma: no cover - never break a turn
                     pass
+        elif len(hint_hits) >= 2:
+            # The planner is a stochastic model call — when it is unsure,
+            # unavailable, or WRONG about an unmistakably multi-action
+            # request ("research X, then email me Y"), receipts are still
+            # mandatory. A single action word stays chat-friendly ("send me
+            # a joke" must not gate); two or more is an assignment.
+            tool_mandatory = True
+            logger.info("planner unsure/absent but %d action verbs — "
+                        "receipts mandatory anyway", len(hint_hits))
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -792,10 +812,18 @@ class Agent:
         # may not deliver an answer with zero receipts. Six prose-regex
         # families tried to infer "did an action happen" from wording — the
         # gate is a boolean and format-proof (prose, JSON, or call syntax).
-        if (tool_mandatory and not approval_hold
-                and not tools_used and reply):
-            logger.warning("completion gate: tool-mandatory turn answered "
-                           "with zero receipts — bounded retry")
+        # Dodge detector: on a tool-mandatory turn, a short content-free
+        # reply ("How can I assist you today?") is a stonewall — even if the
+        # model burned an irrelevant tool call to manufacture a "receipt".
+        _dodge = bool(
+            tool_mandatory and reply and len(reply.strip()) < 300
+            and _DODGE_RE.search(reply))
+        if (tool_mandatory and not approval_hold and reply
+                and (not tools_used or _dodge)):
+            if _dodge and tools_used:
+                logger.warning("completion gate: dodge reply despite %d "
+                               "receipt(s) — pressuring for the deliverable",
+                               len(tools_used))
             # Name the candidate tools explicitly — an unnamed "call tools"
             # nudge left the model guessing which ones exist.
             _gate_tools = ", ".join(sorted(
@@ -803,15 +831,24 @@ class Agent:
                 if isinstance(s, dict) and "function" in s))[:600]
             _gate_hint = (f" Available tools include: {_gate_tools}."
                           if _gate_tools else "")
-            retry_messages = messages + [
-                {"role": "assistant", "content": reply},
-                {"role": "user", "content": (
+            if tools_used:
+                _gate_msg = (
+                    "SYSTEM GATE: that reply dodges the assignment. You "
+                    "already hold REAL tool output in this conversation — "
+                    "deliver the answer from it NOW, in full, or call more "
+                    "tools if a step is genuinely undone. No greetings, no "
+                    "offers to help — the deliverable itself." + _gate_hint)
+            else:
+                _gate_msg = (
                     "SYSTEM GATE: that reply completes nothing — the request "
                     "requires real tool actions and you called none. Call the "
                     "tools that actually perform the assignment NOW (one or "
                     "more real tool calls), or state plainly which exact step "
                     "you cannot do and why. Do not re-describe the task — "
-                    "act on it." + _gate_hint)},
+                    "act on it." + _gate_hint)
+            retry_messages = messages + [
+                {"role": "assistant", "content": reply},
+                {"role": "user", "content": _gate_msg},
             ]
             receipts = list(tools_used)
             try:
@@ -889,11 +926,21 @@ class Agent:
                     if candidate:
                         reply = candidate
                 else:
-                    reply = (
-                        "I must be straight with you, sir: that assignment "
-                        "needs real actions, and I could not complete them "
-                        "this turn — so nothing has been done. Ask me again "
-                        "and I shall take it step by step.")
+                    # No NEW receipts from the retry. When the gate fired on
+                    # a DODGE but the turn already holds real tool output, a
+                    # substantive non-dodge answer built from that output is
+                    # grounded — accept it. Zero-receipt turns stay strict:
+                    # prose cannot be trusted without evidence.
+                    _grounded = bool(
+                        tools_used and reply.strip()
+                        and len(reply.strip()) >= 300
+                        and not _DODGE_RE.search(reply))
+                    if not _grounded:
+                        reply = (
+                            "I must be straight with you, sir: that assignment "
+                            "needs real actions, and I could not complete them "
+                            "this turn — so nothing has been done. Ask me again "
+                            "and I shall take it step by step.")
             except Exception:
                 logger.exception("completion gate retry failed")
 

@@ -213,3 +213,71 @@ def test_email_question_does_not_park(db, monkeypatch):
     agent = _agent(GreetingLLM(), registry, monkeypatch, CHAT_PLAN)
     agent.handle("did you send an email to bob@example.com?")
     assert parked == []
+
+
+def test_multi_verb_request_gated_even_when_planner_absent(db, monkeypatch):
+    """Planner stochasticity must not un-gate an unmistakable assignment:
+    2+ distinct action verbs → receipts mandatory even with NO planner
+    verdict. A bare greeting on such a turn is rejected."""
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, plan=None)
+    reply = agent.handle(
+        "Research daily-planning apps, then email me the findings")
+    assert "Hello Jae" not in reply
+    assert "nothing has been done" in reply.lower()
+
+
+def test_single_verb_chat_not_gated(db, monkeypatch):
+    """Negative control: one action word is conversation, not an assignment
+    — 'send me a joke' must not trigger the gate."""
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, plan=None)
+    reply = agent.handle("Send me a joke")
+    assert reply.startswith("Hello Jae")
+
+
+class DodgeThenDeliverLLM(GreetingLLM):
+    """Burns an irrelevant tool call for a 'receipt', dodges, then delivers
+    a substantive answer under gate pressure."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "web_search",
+                "arguments": {"query": "daily planning apps"}}]}
+        if self.calls == 2:
+            return {"content": "Hello! How can I assist you today?",
+                    "tool_calls": []}
+        return {"content": "Bento vs Sunsama: " + "real comparison. " * 30,
+                "tool_calls": []}
+
+
+class DodgeForeverLLM(GreetingLLM):
+    """Manufactures a receipt, then stonewalls every gate round."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "web_search", "arguments": {"query": "x"}}]}
+        return {"content": "Hello! How can I assist you today?",
+                "tool_calls": []}
+
+
+def test_dodge_after_irrelevant_receipt_is_gated(db, monkeypatch):
+    """A dodge reply with a manufactured receipt must still trigger the
+    gate; a substantive grounded answer is then accepted."""
+    registry = FakeRegistry()
+    agent = _agent(DodgeThenDeliverLLM(), registry, monkeypatch, MULTI_PLAN)
+    reply = agent.handle(ASSIGNMENT)
+    assert "How can I assist" not in reply
+    assert "Bento vs Sunsama" in reply
+
+
+def test_persistent_dodge_fails_honestly(db, monkeypatch):
+    registry = FakeRegistry()
+    agent = _agent(DodgeForeverLLM(), registry, monkeypatch, MULTI_PLAN)
+    reply = agent.handle(ASSIGNMENT)
+    assert "How can I assist" not in reply
+    assert "nothing has been done" in reply.lower()
