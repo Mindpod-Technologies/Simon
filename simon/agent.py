@@ -422,6 +422,14 @@ class Agent:
             tool_mandatory = True
             logger.info("planner unsure/absent but %d action verbs — "
                         "receipts mandatory anyway", len(hint_hits))
+            # Multi-action by verb count IS an assignment — record it so
+            # history trimming can't amputate it (planner-free path keeps
+            # the same M2 guarantee).
+            try:
+                from . import assignments
+                assignments.open_assignment(self.session_id, user_text)
+            except Exception:  # pragma: no cover - never break a turn
+                pass
 
         # Unified frontier handoff: multi-step per the planner OR
         # unmistakably multi-action by verb count (≥2) — small local tiers
