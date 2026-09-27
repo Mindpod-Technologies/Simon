@@ -58,7 +58,14 @@ def init_db(path: Optional[str] = None) -> None:
     conn = memory._connect(path)
     try:
         conn.executescript(_SCHEMA)
-        conn.commit()
+        # Migration: requeue counter for restart-resilience.
+        try:
+            conn.execute(
+                "ALTER TABLE jobs ADD COLUMN attempts INTEGER"
+                " NOT NULL DEFAULT 0")
+            conn.commit()
+        except Exception:  # column already exists
+            pass
     finally:
         conn.close()
 
@@ -164,24 +171,35 @@ def cancel_job(job_id: int, path: Optional[str] = None) -> bool:
 
 
 def fail_stale_running(path: Optional[str] = None) -> int:
-    """Mark orphaned 'running' jobs as failed (worker was restarted).
+    """Handle orphaned 'running' jobs at worker startup.
 
-    Called at JobRunner startup: at that moment no job can legitimately be
-    running in this process, so any 'running' row belongs to a dead worker.
-    Failing them (rather than requeueing) avoids surprise re-deliveries.
+    Any 'running' row at startup belongs to a dead worker. Long expensive
+    jobs (multi-agent reviews, research programmes) were being LOST to every
+    restart — three in one day (2026-09-27: jobs 26–28). Research-style jobs
+    are idempotent: requeue them ONCE automatically. A job interrupted twice
+    is genuinely stuck and fails. The one-requeue cap is the guard against
+    surprise re-deliveries of non-idempotent work.
     """
     init_db(path)
     conn = memory._connect(path)
     try:
-        cur = conn.execute(
+        requeued = conn.execute(
+            "UPDATE jobs SET status = 'pending', started_at = NULL,"
+            " attempts = attempts + 1"
+            " WHERE status = 'running' AND attempts < 1")
+        failed = conn.execute(
             "UPDATE jobs SET status = 'failed',"
-            " error = 'interrupted by a Simon restart',"
-            " finished_at = datetime('now') WHERE status = 'running'")
+            " error = 'interrupted by a Simon restart (twice — giving up)',"
+            " finished_at = datetime('now')"
+            " WHERE status = 'running'")
         conn.commit()
-        if cur.rowcount:
-            logger.info("marked %d stale running job(s) as failed",
-                        cur.rowcount)
-        return cur.rowcount
+        if requeued.rowcount:
+            logger.info("requeued %d interrupted job(s) for one retry",
+                        requeued.rowcount)
+        if failed.rowcount:
+            logger.info("failed %d twice-interrupted job(s)",
+                        failed.rowcount)
+        return requeued.rowcount + failed.rowcount
     finally:
         conn.close()
 

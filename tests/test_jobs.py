@@ -55,6 +55,13 @@ def test_cancel_only_pending(db):
 def test_fail_stale_running(db):
     orphan = jobs.create_job("orphaned task", path=db)
     jobs.next_pending(path=db)  # marks it 'running' with no worker
+    # First interruption: requeued for one automatic retry, not failed.
+    assert jobs.fail_stale_running(path=db) == 1
+    job = jobs.get_job(orphan, path=db)
+    assert job["status"] == "pending"
+    assert job["attempts"] == 1
+    # Second interruption: genuinely stuck — now it fails.
+    jobs.next_pending(path=db)
     assert jobs.fail_stale_running(path=db) == 1
     job = jobs.get_job(orphan, path=db)
     assert job["status"] == "failed"
