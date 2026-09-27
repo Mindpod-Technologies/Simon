@@ -295,6 +295,13 @@ class JobRunner:
                         "receipts — refusing to deliver a fabricated result")
             if not result:
                 raise RuntimeError("job produced an empty result")
+            # The agent's honest-failure floor is NOT a deliverable — it
+            # means the turn never completed the work. Fail the job so the
+            # owner gets a truthful failure notice, not a boxed apology.
+            if "nothing has been done" in result.lower():
+                raise RuntimeError(
+                    "job agent hit its honest-failure floor — the "
+                    "assignment did not complete this run")
             finish_job(job_id, "done", result=result, path=self.db_path)
             duration = int(time.monotonic() - t0)
             obs.record_event("job", interface="job",

@@ -395,15 +395,6 @@ class Agent:
                 logger.info("planner: multi-step assignment → smart tier + "
                             "receipts mandatory (%.2f)",
                             plan_verdict["confidence"])
-                # Multi-step assignments are exactly where small local
-                # models flail (wrong args, dodges — observed live). When a
-                # frontier brain is configured, hand the assignment to it
-                # directly instead of discovering that the hard way.
-                if getattr(self.llm, "frontier_enabled", False):
-                    model = self.llm.model_frontier
-                    self.llm.last_route_reason = "plan multi-step → frontier"
-                    logger.info("planner: multi-step assignment → frontier "
-                                "tier (%s)", model)
                 # M2: record the commitment durably — history trimming must
                 # never be able to amputate an accepted assignment.
                 try:
@@ -420,14 +411,19 @@ class Agent:
             tool_mandatory = True
             logger.info("planner unsure/absent but %d action verbs — "
                         "receipts mandatory anyway", len(hint_hits))
-            # Same reasoning as the planner path: multi-action assignments
-            # flail on small local tiers — hand them to the frontier brain
-            # when one is configured.
-            if getattr(self.llm, "frontier_enabled", False):
-                model = self.llm.model_frontier
-                self.llm.last_route_reason = "multi-action → frontier"
-                logger.info("multi-action assignment → frontier tier (%s) "
-                            "via verb fallback", model)
+
+        # Unified frontier handoff: multi-step per the planner OR
+        # unmistakably multi-action by verb count (≥2) — small local tiers
+        # flail on these either way (wrong args, dodges — observed live).
+        # The planner saying "tool_single" about a 3-verb assignment must
+        # not keep it local. Single-action tool turns stay local.
+        if (tool_mandatory and getattr(self.llm, "frontier_enabled", False)
+                and (len(hint_hits) >= 2
+                     or (plan_verdict and plan_verdict.get("multi_step")))):
+            model = self.llm.model_frontier
+            self.llm.last_route_reason = "multi-action → frontier"
+            logger.info("multi-action assignment → frontier tier (%s)",
+                        model)
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -707,7 +703,13 @@ class Agent:
                     return reply
 
         fast_model = getattr(self.llm, "model_fast", None)
-        for _ in range(0 if reply else MAX_ITERATIONS):
+        # Frontier turns do heavy multi-step work (research → fetches →
+        # documents); the local-sized budget of 5 iterations ran out
+        # mid-write-up on a live job (2026-09-26). Double it for frontier.
+        max_iters = MAX_ITERATIONS
+        if model and model == getattr(self.llm, "model_frontier", None):
+            max_iters = MAX_ITERATIONS * 2
+        for _ in range(0 if reply else max_iters):
             # Fast tier handles simple turns without tools: sending the full
             # tool schemas (~18k tokens with MCP servers connected) would
             # dominate its latency. Tool-needing turns route smart via the
@@ -855,6 +857,31 @@ class Agent:
                         self.llm.last_route_reason = "frontier rescue"
                 except Exception:
                     logger.exception("frontier rescue failed")
+            if not reply and tool_outputs:
+                # The work HAPPENED (receipts in context) but the iteration
+                # budget ran out before the write-up — one clean no-tools
+                # shot at the deliverable from what the tools produced.
+                try:
+                    fin = self.llm.chat(messages + [
+                        {"role": "user", "content": (
+                            "Your tool budget for this turn is now spent. "
+                            "Using ONLY the tool results already in this "
+                            "conversation, write the final deliverable for "
+                            "the user now — complete and self-contained. "
+                            "No new tool calls.")}],
+                        model=model or self.llm.model)
+                    cand = (fin.get("content") or "").strip()
+                    if cand and not (len(cand) < 400
+                                     and _DODGE_RE.search(cand)):
+                        reply = cand
+                except Exception:
+                    logger.exception("final no-tools deliverable failed")
+            if not reply and tool_outputs:
+                # Deterministic floor: real receipts, delivered verbatim —
+                # never an apology over completed work.
+                reply = ("Here's what I completed, sir — straight from the "
+                         "tools, as my write-up ran out of steps:\n\n"
+                         + "\n\n".join(tool_outputs[-2:])[:3000])
             if not reply:
                 reply = ("I do apologise, sir — I seem to have tied myself in "
                          "knots with tools. Perhaps we might try that again, "
@@ -986,22 +1013,25 @@ class Agent:
                         break
                 if approval_hold:
                     pass  # the reply IS the approval ask — turn ends here
-                elif len(receipts) > len(tools_used):
-                    tools_used = receipts
-                    result2 = self.llm.chat(retry_messages,
-                                            model=model or self.llm.model)
-                    candidate = (result2.get("content") or "").strip()
-                    if candidate:
-                        reply = candidate
                 else:
-                    # No NEW receipts from the retry. When the gate fired on
-                    # a DODGE but the turn already holds real tool output, a
-                    # substantive non-dodge answer built from that output is
-                    # grounded — accept it. Zero-receipt turns stay strict:
-                    # prose cannot be trusted without evidence.
+                    if len(receipts) > len(tools_used):
+                        tools_used = receipts
+                        result2 = self.llm.chat(retry_messages,
+                                                model=model or self.llm.model)
+                        candidate = (result2.get("content") or "").strip()
+                        # A dodge summary is no summary at all — leave reply
+                        # as-is so the grounded/frontier path below engages.
+                        if candidate and not (
+                                len(candidate) < 400
+                                and _DODGE_RE.search(candidate)):
+                            reply = candidate
+                    # When the turn holds real tool output, a substantive
+                    # non-dodge answer built from that output is grounded —
+                    # accept it. Zero-receipt turns stay strict: prose cannot
+                    # be trusted without evidence.
                     _grounded = bool(
                         tools_used and reply.strip()
-                        and len(reply.strip()) >= 300
+                        and len(reply.strip()) >= 20
                         and not _DODGE_RE.search(reply))
                     if not _grounded:
                         # Last resort before admitting defeat: the frontier
@@ -1051,7 +1081,7 @@ class Agent:
                                     "gate frontier escalation failed")
                     _grounded = bool(
                         tools_used and reply.strip()
-                        and len(reply.strip()) >= 300
+                        and len(reply.strip()) >= 20
                         and not _DODGE_RE.search(reply))
                     if not _grounded and not approval_hold:
                         reply = (

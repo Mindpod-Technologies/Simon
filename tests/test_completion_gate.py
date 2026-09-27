@@ -375,6 +375,30 @@ def test_frontier_absent_keeps_honest_floor(db, monkeypatch):
     assert "nothing has been done" in reply.lower()
 
 
+class LoopForeverLLM(GreetingLLM):
+    """Always calls a tool when tools are offered — exhausts the iteration
+    budget mid-work; answers only the final no-tools shot."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if tools:
+            return {"content": None, "tool_calls": [{
+                "id": f"c{self.calls}", "name": "web_search",
+                "arguments": {"query": f"q{self.calls}"}}]}
+        return {"content": "Final deliverable written from the receipts.",
+                "tool_calls": []}
+
+
+def test_exhausted_loop_with_receipts_still_delivers(db, monkeypatch):
+    """Iteration budget spent mid-work must NOT produce the 'tied myself in
+    knots' apology when receipts exist — the deliverable still ships."""
+    registry = FakeRegistry()
+    agent = _agent(LoopForeverLLM(), registry, monkeypatch, CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "Final deliverable" in reply
+    assert not agent.last_turn_exhausted
+
+
 def test_sanitize_tool_name_strips_leaked_markup(db, monkeypatch):
     """Models leak chat markup into tool-call names under context pressure
     ('assistant<|channel|>mcp_github_list_contents' seen live 2026-09-26)."""

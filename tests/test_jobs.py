@@ -124,6 +124,24 @@ def test_runner_rejects_empty_result(db):
     assert jobs.get_job(job_id, path=db)["status"] == "failed"
 
 
+def test_runner_fails_honest_failure_floor_result(db):
+    """The agent's honest-failure floor text is NOT a deliverable — the job
+    must fail honestly, never ship the apology as if it were the work."""
+    delivered = []
+    runner = jobs.JobRunner(
+        agent_factory=lambda job_id: _FakeAgent(
+            "I must be straight with you, sir: that assignment needs real "
+            "actions, and I could not complete them this turn — so nothing "
+            "has been done."),
+        notify=delivered.append, db_path=db)
+    job_id = jobs.create_job("hard task", path=db)
+    runner.run_once()
+    job = jobs.get_job(job_id, path=db)
+    assert job["status"] == "failed"
+    assert "honest-failure" in job["error"]
+    assert not any("nothing has been done" in d for d in delivered)
+
+
 def test_runner_fails_exhausted_tool_loop(db):
     """An agent that exhausted its tool budget must fail the job, not
     deliver its apology as if it were the work product."""

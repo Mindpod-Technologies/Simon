@@ -179,7 +179,10 @@ class LLM:
                 base_url=getattr(settings, "llm_frontier_base_url", "")
                 or "https://api.moonshot.ai/v1",
                 api_key=frontier_key,
-                timeout=getattr(settings, "llm_frontier_timeout", 90),
+                # Frontier turns carry big contexts (full tool schemas, gate
+                # retries) and long deliverables — 90s timed out live on a
+                # 25k-token assignment turn (job #22, 2026-09-26).
+                timeout=getattr(settings, "llm_frontier_timeout", 300),
             )
             effort = getattr(
                 settings, "llm_frontier_reasoning_effort", "") or ""
