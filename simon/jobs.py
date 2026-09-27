@@ -186,10 +186,10 @@ def fail_stale_running(path: Optional[str] = None) -> int:
         requeued = conn.execute(
             "UPDATE jobs SET status = 'pending', started_at = NULL,"
             " attempts = attempts + 1"
-            " WHERE status = 'running' AND attempts < 1")
+            " WHERE status = 'running' AND attempts < 2")
         failed = conn.execute(
             "UPDATE jobs SET status = 'failed',"
-            " error = 'interrupted by a Simon restart (twice — giving up)',"
+            " error = 'interrupted by Simon restarts (3x — giving up)',"
             " finished_at = datetime('now')"
             " WHERE status = 'running'")
         conn.commit()

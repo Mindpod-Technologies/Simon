@@ -152,9 +152,12 @@ class LLM:
         if "11434" in (settings.llm_base_url or ""):
             self._extra["extra_body"] = {"reasoning_effort": "none",
                                          "temperature": 0.4,
-                                         # Keep the model resident: reloads
-                                         # cost 5-15 s on a single-GPU box.
-                                         "keep_alive": "24h"}
+                                         # Keep models warm, not immortal:
+                                         # 24h residency stacked qwen+20b+
+                                         # Laya+embeddings on 24GB and the
+                                         # Metal driver asserted, killing
+                                         # the whole process (2026-09-27).
+                                         "keep_alive": "2h"}
 
         # Model router: fast model for simple turns, llm_model for the rest.
         self.model_fast: str = settings.llm_model_fast or self.model
