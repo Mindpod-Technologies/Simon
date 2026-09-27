@@ -122,6 +122,11 @@ class Settings(BaseSettings):
     # Background jobs (long-running assignments executed by the JobRunner)
     simon_jobs_enabled: bool = True
 
+    # Decision engine backend: auto|laya|api|off. "off" disables the local
+    # Laya engine entirely — its Metal inference crash-loops the service
+    # under GPU memory pressure (assertion after every load, 2026-09-27).
+    simon_decision_backend: str = ""
+
     # Approval gate ("autonomous, not unsupervised"): irreversible or
     # externally visible actions (send_email, destructive shell commands,
     # smart-home calls, MCP mutations like git push) pause and wait for the

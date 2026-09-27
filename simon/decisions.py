@@ -39,8 +39,20 @@ _LAYA_AGENT = None
 
 
 def _backend() -> str:
-    choice = os.environ.get("SIMON_DECISION_BACKEND", "auto").lower()
-    if choice in ("laya", "api"):
+    choice = os.environ.get("SIMON_DECISION_BACKEND", "").lower()
+    if not choice:
+        try:
+            from .config import get_settings
+            choice = (getattr(get_settings(), "simon_decision_backend", "")
+                      or "").lower()
+        except Exception:  # pragma: no cover - config must never break this
+            choice = ""
+    if not choice:
+        choice = "auto"
+    # "off": no decision engine at all — Laya's Metal inference crash-loops
+    # the service under GPU memory pressure (assertion after every load,
+    # 2026-09-27); keyword/fallback paths cover everything it did.
+    if choice in ("laya", "api", "off"):
         return choice
     if os.environ.get("SIMON_JEV_API_KEY", ""):
         return "api"
@@ -176,6 +188,7 @@ def plan_turn(user_text: str) -> Optional[dict]:
         return None
     if _backend() != "laya":
         return None  # API planner ships with the Jev key; Laya is local.
+        # ("off" also lands here — no planner, keyword paths take over.)
     try:
         out = _laya_agent().predict(
             state=f"User: {user_text[:600]}",
@@ -210,7 +223,10 @@ def route_turn(user_text: str, history_len: int = 0,
     """('fast'|'smart', confidence) from the decision backend, or None →
     keyword fallback. Backend: Laya (local) or the Jev API, per
     SIMON_DECISION_BACKEND."""
-    if _backend() == "laya":
+    backend = _backend()
+    if backend == "off":
+        return None
+    if backend == "laya":
         return _laya_route(user_text)
     if not enabled():
         return None
