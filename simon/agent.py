@@ -357,6 +357,17 @@ class Agent:
                     self.llm.last_route_reason = "named tool"
             except Exception:  # pragma: no cover - never break a turn
                 pass
+            # A message naming an email address with send/forward intent is
+            # email work — the tool-less fast tier can only refuse it
+            # (observed live 2026-09-27: "send to Tomecaf@…" hit fast and
+            # honestly but wrongly said the tool was unavailable).
+            if (model is not None
+                    and model == getattr(self.llm, "model_fast", None)
+                    and re.search(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", user_text)
+                    and re.search(r"\b(send|forward|e-?mail|mail)\b",
+                                  low_text)):
+                model = self.llm.model
+                self.llm.last_route_reason = "email intent"
             # Explicit research intent ("do a web search", "look it up")
             # needs tools too — the fast tier would otherwise claim it
             # "cannot search" and then fabricate an answer from thin air.
