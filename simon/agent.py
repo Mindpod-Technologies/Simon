@@ -40,9 +40,30 @@ _SEND_EMAIL_RE = re.compile(
 _DODGE_RE = re.compile(
     r"\b(how (can|may|might) i (help|assist|be of)|"
     r"what (would you like|can i do|shall we)|"
+    r"how would you like|"
     r"how may i be of|ready to (help|assist|dive|get started)|"
-    r"how can i assist)\b",
+    r"how can i assist|let me know what you'?d like|"
+    r"what you'?d like to (tackle|work on|do next))\b",
     re.IGNORECASE)
+
+# Tool-schema pruning: with MCP servers connected, the full schema list is
+# 120+ tools (~20k tokens) — enough to bury a small local model's attention
+# until it echoes the instructions instead of answering (observed live
+# 2026-09-26). The main loop sends a relevance-pruned set; the corrective
+# paths (gate, nudges) keep the FULL list so no tool is ever unreachable.
+_TOOL_PRUNE_THRESHOLD = 40
+_TOOL_PRUNE_KEEP = 32
+
+# Tools that must always be available regardless of the turn's wording.
+_ALWAYS_TOOLS = frozenset({
+    "web_search", "fetch_url", "calculator", "remember_fact", "recall_facts",
+    "create_document", "send_email", "read_recent_emails", "read_email",
+    "schedule_task", "list_schedules", "cancel_schedule", "start_job",
+    "job_status", "cancel_job", "list_files", "read_file", "write_file",
+    "take_note", "read_notes", "ingest_note", "get_datetime", "load_skill",
+    "browser_goto", "joke", "spawn_agent", "list_agents", "agent_status",
+    "agent_result", "cancel_agent", "create_chart",
+})
 
 MAX_ITERATIONS = 5
 
@@ -203,6 +224,9 @@ class Agent:
 
         messages = self._build_messages(user_text)
         schemas = self.registry.schemas() if self.registry else None
+        # Pruned schema view for local tiers — full schemas stay available
+        # to the frontier model and to every corrective path below.
+        turn_schemas = self._prune_schemas(schemas, user_text)
 
         # Capability questions ("what can you do?") get an instant,
         # deterministic answer built from the live registry — local models
@@ -549,6 +573,7 @@ class Agent:
         reply = ""
         tool_errors = 0
         tools_used: list[str] = []
+        tool_outputs: list[str] = []
         failed_calls: dict[str, int] = {}
         artifact_markers: list[str] = []
         escalated = False
@@ -567,6 +592,11 @@ class Agent:
                                      str(output or "")):
                 if marker not in artifact_markers:
                     artifact_markers.append(marker)
+            # Keep the raw successful output too — the final dodge sweep
+            # delivers REAL data verbatim when every prose attempt fails.
+            text = str(output or "")
+            if text and not text.startswith("Error"):
+                tool_outputs.append(text)
 
         def _guarded_call(name, args):
             """Execute a tool from a rescue/nudge path, unless it needs owner
@@ -664,9 +694,14 @@ class Agent:
             # tool schemas (~18k tokens with MCP servers connected) would
             # dominate its latency. Tool-needing turns route smart via the
             # classifier, and mid-turn escalation restores full schemas.
-            turn_tools = schemas or None
+            # The smart local tier gets the RELEVANCE-PRUNED set — the full
+            # 120+ tool list is enough to make a small model echo its
+            # instructions instead of answering. Frontier gets everything.
+            turn_tools = turn_schemas or None
             if fast_model and model == fast_model:
                 turn_tools = None
+            elif model and model == getattr(self.llm, "model_frontier", None):
+                turn_tools = schemas or None
             try:
                 if model is None:
                     result = self.llm.chat(messages, tools=turn_tools)
@@ -689,6 +724,8 @@ class Agent:
                     continue
                 raise
             tool_calls = result.get("tool_calls") or []
+            for _c in tool_calls:
+                _c["name"] = self._sanitize_tool_name(_c.get("name"))
             if not tool_calls:
                 reply = result.get("content") or ""
                 break
@@ -816,7 +853,7 @@ class Agent:
         # reply ("How can I assist you today?") is a stonewall — even if the
         # model burned an irrelevant tool call to manufacture a "receipt".
         _dodge = bool(
-            tool_mandatory and reply and len(reply.strip()) < 300
+            tool_mandatory and reply and len(reply.strip()) < 400
             and _DODGE_RE.search(reply))
         if (tool_mandatory and not approval_hold and reply
                 and (not tools_used or _dodge)):
@@ -860,6 +897,9 @@ class Agent:
                                            tools=schemas or None,
                                            model=model or self.llm.model)
                     gate_calls = result.get("tool_calls") or []
+                    for _c in gate_calls:
+                        _c["name"] = self._sanitize_tool_name(
+                            _c.get("name"))
                     if not gate_calls:
                         candidate = (result.get("content") or "").strip()
                         if candidate:
@@ -943,6 +983,36 @@ class Agent:
                             "and I shall take it step by step.")
             except Exception:
                 logger.exception("completion gate retry failed")
+
+        # Results-grounding: tools ran and returned REAL output, yet the
+        # reply dodges ("how would you like me to use this information?")
+        # instead of answering the question that was asked. Regenerate
+        # strictly from the tool output — the same guarantee as URL
+        # grounding, generalized to any tool-backed turn.
+        if (not approval_hold and not tool_mandatory and tools_used and reply
+                and len(reply.strip()) < 400 and _DODGE_RE.search(reply)):
+            logger.warning("dodge reply despite %d receipt(s) — grounding "
+                           "from tool output", len(tools_used))
+            ground_messages = messages + [
+                {"role": "assistant", "content": reply},
+                {"role": "user", "content": (
+                    "The tools above returned REAL results and the user "
+                    "asked a direct question. Answer it NOW from those "
+                    "results, in the format and length the user requested. "
+                    "Do not ask what to do with the information, and do not "
+                    "offer options — give the answer.")},
+            ]
+            try:
+                if model is None:
+                    result = self.llm.chat(ground_messages)
+                else:
+                    result = self.llm.chat(ground_messages, model=model)
+                candidate = (result.get("content") or "").strip()
+                if candidate and not _DODGE_RE.search(candidate):
+                    reply = candidate
+                    regenerated = True
+            except Exception:
+                logger.exception("results-grounding regeneration failed")
 
         # Deterministic URL grounding: when the user's message contains a URL
         # and no fetch-type tool ran this turn, do NOT rely on the model
@@ -1061,6 +1131,9 @@ class Agent:
                                                tools=schemas or None,
                                                model=model)
                     tool_calls = result.get("tool_calls") or []
+                    for _c in tool_calls:
+                        _c["name"] = self._sanitize_tool_name(
+                            _c.get("name"))
                     if not tool_calls:
                         candidate = (result.get("content") or "").strip()
                         if candidate:
@@ -1156,6 +1229,9 @@ class Agent:
                                                tools=schemas or None,
                                                model=model)
                     nudge_calls = result.get("tool_calls") or []
+                    for _c in nudge_calls:
+                        _c["name"] = self._sanitize_tool_name(
+                            _c.get("name"))
                     if not nudge_calls:
                         candidate = (result.get("content") or "").strip()
                         if candidate:
@@ -1218,6 +1294,29 @@ class Agent:
                          "the question?")
                 regenerated = True
 
+        # FINAL DODGE SWEEP: every prose pass above can still land on a
+        # content-free dodge ("Hi! How can I help you today?") — observed
+        # live after the cut-off regenerator replaced a grounded answer with
+        # a fresh dodge. When the turn holds REAL tool output, the floor is
+        # the data itself, delivered verbatim; without receipts, the floor
+        # is an honest statement that nothing happened. A dodge never ships.
+        if (not approval_hold and reply
+                and len(reply.strip()) < 400 and _DODGE_RE.search(reply)):
+            if tool_outputs:
+                logger.warning("final reply still a dodge — delivering raw "
+                               "tool output verbatim")
+                reply = ("Here's what I found, sir — straight from the "
+                         "source, since my summary kept failing:\n\n"
+                         + "\n\n".join(tool_outputs[-2:])[:3000])
+            elif tool_mandatory:
+                logger.warning("final reply still a dodge with zero "
+                               "receipts — honest failure")
+                reply = (
+                    "I must be straight with you, sir: that assignment "
+                    "needs real actions, and I could not complete them "
+                    "this turn — so nothing has been done. Ask me again "
+                    "and I shall take it step by step.")
+
         # Artifact markers: tools that create files (charts, documents)
         # emit [artifact:path] in their output so the chat UI can render
         # the file inline. Models often paraphrase instead of quoting the
@@ -1274,6 +1373,58 @@ class Agent:
             user_len=len(user_text),
         )
         return reply
+
+    @staticmethod
+    def _prune_schemas(schemas, user_text: str):
+        """Relevance-prune tool schemas for small local models.
+
+        Always kept: the core tool set, and any tool named in the message.
+        The rest are ranked by word overlap between the message and the
+        tool's name+description; the list is capped at _TOOL_PRUNE_KEEP.
+        Under the threshold (or with a big-context frontier model) the full
+        list passes through untouched.
+        """
+        if not schemas or len(schemas) <= _TOOL_PRUNE_THRESHOLD:
+            return schemas
+        words = set(re.findall(r"[a-z0-9]+", (user_text or "").lower()))
+        low_text = (user_text or "").lower()
+        keep, scored = [], []
+        for idx, s in enumerate(schemas):
+            fn = s.get("function", {}) if isinstance(s, dict) else {}
+            name = fn.get("name", "")
+            if name in _ALWAYS_TOOLS or (name and name in low_text):
+                keep.append((idx, s))
+                continue
+            text = (name.replace("_", " ") + " "
+                    + str(fn.get("description") or "")).lower()
+            tokens = set(re.findall(r"[a-z0-9]+", text))
+            scored.append((len(words & tokens), idx, s))
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        budget = max(0, _TOOL_PRUNE_KEEP - len(keep))
+        chosen = keep + [(idx, s) for _, idx, s in scored[:budget]]
+        chosen.sort(key=lambda x: x[0])  # restore registry order
+        return [s for _, s in chosen]
+
+    def _sanitize_tool_name(self, name: str) -> str:
+        """Models sometimes leak chat markup into tool-call names
+        ('assistant<|channel|>mcp_github_list_contents' seen live). Strip the
+        markup; if the result still isn't a real tool, recover by unique
+        containment against the registry."""
+        name = (name or "").strip()
+        cleaned = re.sub(r"^.*?<\|channel\|>", "", name)
+        cleaned = re.sub(r"<\|[^|]*\|>", "", cleaned).strip()
+        try:
+            if cleaned in self.registry:
+                return cleaned
+            names = self.registry.names()
+        except Exception:  # pragma: no cover - test doubles / odd registries
+            return cleaned
+        matches = [n for n in names if n and (n in cleaned or cleaned in n)]
+        if len(matches) == 1:
+            logger.warning("recovered tool name %r from leaked %r",
+                           matches[0], name)
+            return matches[0]
+        return cleaned
 
     _READ_ONLY_PATH_TOOLS = {"list_files", "read_file"}
 

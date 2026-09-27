@@ -23,9 +23,27 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
+        self._accepted: dict[str, "set[str] | None"] = {}
 
     def register(self, tool: Tool) -> None:
         self._tools[tool.name] = tool
+        self._accepted.pop(tool.name, None)
+
+    def _accepted_args(self, tool: Tool) -> "set[str] | None":
+        """Parameter names the tool's function accepts, or None when it
+        takes **kwargs (everything passes through). Cached per tool."""
+        if tool.name in self._accepted:
+            return self._accepted[tool.name]
+        import inspect
+        try:
+            params = inspect.signature(tool.func).parameters
+            accepted = None if any(
+                p.kind is inspect.Parameter.VAR_KEYWORD
+                for p in params.values()) else set(params)
+        except (TypeError, ValueError):  # builtins without signatures
+            accepted = None
+        self._accepted[tool.name] = accepted
+        return accepted
 
     def schemas(self) -> list[dict]:
         """OpenAI tools-format schemas for all registered tools."""
@@ -45,8 +63,20 @@ class ToolRegistry:
         t = self._tools.get(name)
         if t is None:
             return f"Error: unknown tool '{name}'"
+        args = dict(args or {})
+        # Robustness: local models routinely invent parameters ("topn",
+        # "num_results") that are not in the schema. Dropping them beats
+        # crashing the call — a tool that runs with slightly fewer wishes
+        # still produces real receipts; a TypeError produces nothing.
+        accepted = self._accepted_args(t)
+        if accepted is not None:
+            unknown = [k for k in args if k not in accepted]
+            if unknown:
+                log.warning("tool %r: dropping model-invented arg(s) %s",
+                            name, unknown)
+                args = {k: v for k, v in args.items() if k in accepted}
         try:
-            result = t.func(**(args or {}))
+            result = t.func(**args)
         except Exception as exc:  # noqa: BLE001 - must never raise
             log.warning("tool %r failed: %s", name, exc)
             return f"Error: {exc}"

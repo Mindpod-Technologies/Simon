@@ -10,7 +10,7 @@ soundfile
 numpy
 python-telegram-bot>=21
 apscheduler
-duckduckgo-search
+ddgs  # duckduckgo-search was renamed; old package returns zero results
 requests
 ics
 beautifulsoup4

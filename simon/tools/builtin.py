@@ -70,10 +70,18 @@ def _calculator(expression: str) -> str:
 # -------------------------------------------------------------- web search
 
 def _web_search(query: str) -> str:
+    # duckduckgo_search was renamed ddgs (the old package's backend went
+    # stale and silently returns zero results) — prefer the maintained one.
+    DDGS = None
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS as _D
+        DDGS = _D
     except ImportError:
-        return "Error: duckduckgo-search package is not installed"
+        try:
+            from duckduckgo_search import DDGS as _D
+            DDGS = _D
+        except ImportError:
+            return "Error: ddgs package is not installed"
     try:
         results = list(DDGS().text(query, max_results=5))
     except Exception as exc:  # noqa: BLE001 - network/search failures are non-fatal

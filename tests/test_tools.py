@@ -43,6 +43,51 @@ def test_register_and_call_roundtrip():
     }]
 
 
+def test_call_drops_model_invented_arguments():
+    """Local models invent params not in the schema (e.g. web_search called
+    with topn=5 crashed live turns on 2026-09-26). Invented args must be
+    dropped, not crash the tool."""
+    registry = ToolRegistry()
+    seen = {}
+
+    def _search(query):
+        seen["query"] = query
+        return "results"
+
+    registry.register(Tool(
+        name="web_search",
+        description="Search the web.",
+        parameters={"type": "object", "properties": {"query": {"type": "string"}}},
+        func=_search,
+    ))
+    out = registry.call("web_search", {"query": "bento app", "topn": 5})
+    assert out == "results"
+    assert seen == {"query": "bento app"}
+
+
+def test_call_passes_everything_to_kwargs_tools():
+    """Tools whose func takes **kwargs receive all args unfiltered."""
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="flex",
+        description="Flexible.",
+        parameters={"type": "object", "properties": {}},
+        func=lambda **kw: ",".join(sorted(kw)),
+    ))
+    assert registry.call("flex", {"a": 1, "b": 2}) == "a,b"
+
+
+def test_invented_arg_filter_cached_and_recomputed_on_reregister():
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="t", description="x", parameters={}, func=lambda a: f"v1:{a}"))
+    assert registry.call("t", {"a": 1, "junk": 2}) == "v1:1"
+    registry.register(Tool(
+        name="t", description="x", parameters={},
+        func=lambda a, junk: f"v2:{a}{junk}"))
+    assert registry.call("t", {"a": 1, "junk": 2}) == "v2:12"
+
+
 def test_unknown_tool_returns_error_string_not_exception():
     registry = ToolRegistry()
     result = registry.call("does_not_exist", {})

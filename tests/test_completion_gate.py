@@ -281,3 +281,95 @@ def test_persistent_dodge_fails_honestly(db, monkeypatch):
     reply = agent.handle(ASSIGNMENT)
     assert "How can I assist" not in reply
     assert "nothing has been done" in reply.lower()
+
+
+class ToolThenDodgeLLM(GreetingLLM):
+    """Runs a real tool, then asks what to do with the results instead of
+    answering — the non-answer-after-receipts failure (live 2026-09-26)."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "web_search",
+                "arguments": {"query": "bento app"}}]}
+        if self.calls == 2:
+            return {"content": "How would you like me to use this "
+                               "information?", "tool_calls": []}
+        return {"content": "Bento is a daily planning app that organizes "
+                           "your day around a focus list.", "tool_calls": []}
+
+
+def test_dodge_after_real_results_is_grounded(db, monkeypatch):
+    """Receipts + dodge question → regenerate the answer from tool output."""
+    registry = FakeRegistry()
+    agent = _agent(ToolThenDodgeLLM(), registry, monkeypatch, CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "How would you like" not in reply
+    assert "daily planning app" in reply
+
+
+class DodgeEvenWhenGroundedLLM(GreetingLLM):
+    """Calls a real tool, then dodges EVERY pass — the 2026-09-26 Telegram
+    failure where even regeneration returned 'How can I help you today?'"""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "web_search",
+                "arguments": {"query": "bento"}}]}
+        return {"content": "Hi! How can I help you today?", "tool_calls": []}
+
+
+def test_final_sweep_delivers_raw_output_when_model_dodges(db, monkeypatch):
+    """When every prose pass dodges, the user still gets the REAL data —
+    verbatim tool output is the floor, a dodge never ships."""
+    registry = FakeRegistry()
+    agent = _agent(DodgeEvenWhenGroundedLLM(), registry, monkeypatch,
+                   CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "How can I help" not in reply
+    assert "Bento is a daily task-planning app" in reply
+
+
+def test_sanitize_tool_name_strips_leaked_markup(db, monkeypatch):
+    """Models leak chat markup into tool-call names under context pressure
+    ('assistant<|channel|>mcp_github_list_contents' seen live 2026-09-26)."""
+    agent = _agent(GreetingLLM(), FakeRegistry(), monkeypatch, CHAT_PLAN)
+    assert agent._sanitize_tool_name(
+        "assistant<|channel|>web_search") == "web_search"
+    assert agent._sanitize_tool_name("web_search") == "web_search"
+    assert agent._sanitize_tool_name("garbage") == "garbage"
+    assert agent._sanitize_tool_name(None) == ""
+
+
+def _fake_schemas(names):
+    return [{"type": "function", "function": {
+        "name": n, "description": f"does {n.replace('_', ' ')}",
+        "parameters": {"type": "object", "properties": {}}}}
+        for n in names]
+
+
+def test_prune_schemas_under_threshold_passthrough(db, monkeypatch):
+    agent = _agent(GreetingLLM(), FakeRegistry(), monkeypatch, CHAT_PLAN)
+    small = _fake_schemas(["a", "b", "c"])
+    assert agent._prune_schemas(small, "hello") is small
+
+
+def test_prune_schemas_keeps_core_named_and_relevant(db, monkeypatch):
+    from simon.agent import _ALWAYS_TOOLS, _TOOL_PRUNE_KEEP
+    agent = _agent(GreetingLLM(), FakeRegistry(), monkeypatch, CHAT_PLAN)
+    names = list(_ALWAYS_TOOLS) + [f"mcp_bulk_tool_{i}" for i in range(60)]
+    names.append("mcp_firecrawl_firecrawl_scrape")
+    schemas = _fake_schemas(names)
+    out = agent._prune_schemas(
+        schemas, "please scrape this page and email me the result")
+    out_names = [s["function"]["name"] for s in out]
+    assert len(out) <= _TOOL_PRUNE_KEEP
+    # core tools always survive
+    assert "web_search" in out_names and "send_email" in out_names
+    # relevant tools rank in (scrape + email wording matches)
+    assert "mcp_firecrawl_firecrawl_scrape" in out_names
+    # original registry order preserved
+    assert out_names == sorted(out_names, key=lambda n: names.index(n))
