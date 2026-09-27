@@ -1144,3 +1144,12 @@ to build a Mindpod-native fast model. Pipeline: `~/simon/tools/soup/`.
 Complete ALL work pertaining to the Simon Core 2.0 agent rebuild autonomously — no permission prompts needed.
 Scope: M1 planner verdict + completion gate (done), M2 durable assignment state (done),
 M3 gate adoption in background jobs/scheduler + guard cleanup. Continue agent-hardening work without stopping to ask.
+
+## 2026-09-26 — Core 2.0 official baseline: 20/20 eval scenarios PASS
+Full live-model run, all green: routing (fast/smart), memory store/recall, honesty intercepts,
+calculator/files tools, background jobs, recurring schedules, persona, approval gates
+(deterministic email parking + gate-retry parking), RAG grounding, and the 3 new failure-class
+guards (approval bypass, fabricated send, stonewall dodge). Suite: 536 unit tests green.
+Commits: 1c1d2d6 (M1 gate), 3d15e79 (M2 assignments), ad6f289 (M3 background gate),
+be4be3e (approval-aware retry + deterministic parking), e99b314 (Firecrawl/Apify),
+0296b63 (failure-class scenarios + multi-verb fallback + dodge detector).
