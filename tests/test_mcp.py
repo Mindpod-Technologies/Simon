@@ -90,6 +90,49 @@ def test_round_trip_discover_and_call(manager, fake_server_script):
     assert "Error" in err  # server-side failures surface as error text
 
 
+PROGRESSIVE_SERVER = textwrap.dedent("""
+    import anyio
+    import mcp.types as types
+    from mcp.server.lowlevel import Server
+    from mcp.server.stdio import stdio_server
+
+    srv = Server("progressive")
+    calls = {"n": 0}
+
+    async def _list(params, meta=None):
+        calls["n"] += 1
+        tools = [types.Tool(name="one", description="",
+                            inputSchema={"type": "object", "properties": {}})]
+        if calls["n"] >= 2:  # second listing onward advertises both
+            tools.append(types.Tool(
+                name="two", description="",
+                inputSchema={"type": "object", "properties": {}}))
+        return types.ListToolsResult(tools=tools)
+
+    srv.add_request_handler("tools/list", types.PaginatedRequestParams,
+                            _list)
+
+    async def main():
+        async with stdio_server() as (r, w):
+            await srv.run(r, w, srv.create_initialization_options())
+
+    anyio.run(main)
+""")
+
+
+def test_progressive_tool_advertisement_is_fully_discovered(manager, tmp_path):
+    """Regression (firecrawl-mcp): servers that load tool modules lazily
+    return a PARTIAL list_tools at t=0 (observed 8 of 27). Discovery must
+    re-list until the count stabilises."""
+    script = tmp_path / "progressive_server.py"
+    script.write_text(PROGRESSIVE_SERVER)
+    tools = manager.start_server("prog", {
+        "command": sys.executable,
+        "args": [str(script)],
+    })
+    assert {t["name"] for t in tools} == {"one", "two"}
+
+
 def test_call_unknown_server(manager):
     assert "not running" in manager.call_tool("ghost", "echo", {})
 

@@ -126,7 +126,18 @@ class MCPManager:
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
-                    result = await session.list_tools()
+                    # Some servers (firecrawl-mcp) advertise tools
+                    # PROGRESSIVELY as their modules load — a single
+                    # list_tools at t=0 captures a partial set (observed:
+                    # 8 of 27 tools, missing scrape/crawl). Re-list until
+                    # the count stops growing, bounded at ~6s.
+                    discovered = []
+                    for _ in range(6):
+                        result = await session.list_tools()
+                        if len(result.tools) <= len(discovered):
+                            break
+                        discovered = result.tools
+                        await asyncio.sleep(1.0)
                     self._sessions[name] = session
                     if not ready.done():
                         ready.set_result([
@@ -135,10 +146,10 @@ class MCPManager:
                              "schema": (t.input_schema
                                         or {"type": "object",
                                             "properties": {}})}
-                            for t in result.tools
+                            for t in discovered
                         ])
                     log.info("mcp: server %r up with %d tools",
-                             name, len(result.tools))
+                             name, len(discovered))
                     await asyncio.Event().wait()  # park until cancelled
         except asyncio.CancelledError:
             raise

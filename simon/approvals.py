@@ -111,6 +111,12 @@ def _assess_ungated(tool_name: str, args: dict) -> Optional[str]:
         if _DESTRUCTIVE_SHELL_RE.search(cmd):
             return f"run a destructive shell command — `{cmd[:100]}`"
         return None
+    if name.startswith("mcp_apify_") and re.search(r"(call|run)_actor", name):
+        # Running an Apify actor spends real credits on the owner's account —
+        # money-moving action, so it always asks first.
+        actor = args.get("actor") or args.get("actorId") or args.get("actor_id") or "?"
+        return (f"run a paid Apify actor — {str(actor)[:60]} "
+                f"(spends Apify credits)")
     if name.startswith("mcp_") and _MCP_MUTATION_RE.search(name):
         detail = ""
         for key in ("title", "name", "path", "repo", "to", "message"):

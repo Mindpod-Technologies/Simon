@@ -42,6 +42,25 @@ def test_mcp_mutation_needs_approval_read_passes():
     assert approvals.assess("mcp_filesystem_read_file", {}) is None
 
 
+def test_apify_paid_actor_run_needs_approval():
+    """Running an Apify actor spends real credits — money-moving, so it
+    asks first; browsing/searching the actor store stays free."""
+    summary = approvals.assess("mcp_apify_call_actor",
+                               {"actor": "apify/web-scraper"})
+    assert summary and "credits" in summary and "web-scraper" in summary
+    assert approvals.assess("mcp_apify_run_actor",
+                            {"actorId": "x/y"}) is not None
+    assert approvals.assess("mcp_apify_search_actors", {}) is None
+    assert approvals.assess("mcp_apify_get_actor_details", {}) is None
+
+
+def test_firecrawl_read_tools_pass():
+    """Firecrawl scrape/search/crawl are read-only fetches — no approval."""
+    assert approvals.assess("mcp_firecrawl_scrape", {"url": "https://x.com"}) is None
+    assert approvals.assess("mcp_firecrawl_search", {"query": "x"}) is None
+    assert approvals.assess("mcp_firecrawl_crawl", {"url": "https://x.com"}) is None
+
+
 def test_read_only_tools_pass():
     for name in ("read_file", "list_files", "web_search", "fetch_url",
                  "calculator", "recall_facts", "schedule_task",

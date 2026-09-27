@@ -128,3 +128,14 @@ Dashboards (sign in with your Simon password):
 
 *Generated 2026-09-21. 77 commits on main. See also: `docs/FEATURE_PARITY.md`
 (Simon vs Viktor / Claude Cowork / Kimi Work).*
+
+## 2026-09-26 — Firecrawl + Apify MCP servers
+- **Firecrawl** (`firecrawl-mcp`): ENABLED, keyless mode — `scrape` + `search` free (rate-limited);
+  19 tools registered (scrape, crawl, map, search, extract, parse, monitor_*, research_*).
+  Add `FIRECRAWL_API_KEY` to mcp.json env to unlock full crawl/extract quotas.
+- **Apify** (`@apify/actors-mcp-server`): wired but DISABLED — requires `APIFY_TOKEN` in mcp.json env.
+  Paid actor runs (`call_actor`/`run_actor`) are approval-gated (spend real credits).
+- Fix: MCP discovery now re-lists tools until the advertised count stabilises — firecrawl-mcp
+  advertises progressively at startup (was capturing 8 of 27 tools).
+- Fix: `SIMON_MCP_TOOL_ALLOWLIST` extended (scrape, crawl, extract, firecrawl_map, firecrawl_parse,
+  credit, apify) — the old list silently filtered out scrape/crawl.
