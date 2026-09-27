@@ -260,3 +260,34 @@ exact failure classes they were built for.
 **Pruning criterion:** revisit after the gate survives 4+ consecutive clean
 weekly eval runs AND the planner backend covers all production turn classes.
 Until then both layers run; overlap is cheap, a missed fabrication is not.
+
+### ADR-4: OpenClaw as a fallback foundation — decision point — 2026-09-27
+
+**Decision:** stay on Simon's owned core for now; OpenClaw is the evaluated
+fallback if Core 2.0 keeps failing in production.
+
+**What OpenClaw is (verified 2026-09-27):** Peter Steinberger's open-source
+self-hosted agent framework (ex-Clawdbot/Moltbot), ~340k GitHub stars,
+messaging-first (Telegram/WhatsApp/Slack/Discord), SOUL.md persona config,
+Lane Queue serialized agent loop, Markdown+vector memory, ClawHub skills
+ecosystem, BYOK multi-model. Repo: github.com/openclaw/openclaw.
+Known caveat: ambient host authority; CVE-2026-25253 (one-click RCE via
+WebSocket hijack, Feb 2026) — security posture needs audit before any
+family/customer exposure.
+
+**What we'd keep / lose in a rebuild:**
+- KEEP via port: nothing automatic — Simon's moat is the deterministic layer
+  OpenClaw does NOT have: completion gate, assignment state, approval system,
+  receipts enforcement, eval suite, observability portal, billing/licensing.
+- GAIN: mature multi-channel plumbing, huge community, battle-tested against
+  millions of installs, skills marketplace.
+
+**Trigger criteria for the rebuild conversation (any two, sustained a week):**
+1. Weekly eval score below 15/20 twice in a row.
+2. Model-routing/dodge defects recurring after frontier handoff (i.e. the
+   failure is the HARNESS, not the model).
+3. A needed capability (e.g. WhatsApp native, iOS voice) is cheaper to inherit
+   from OpenClaw than to build.
+
+**Middle path to try first:** run a stock OpenClaw instance side-by-side as a
+reference benchmark on the same eval scenarios — data before decisions.
