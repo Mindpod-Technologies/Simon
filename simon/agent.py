@@ -43,6 +43,7 @@ _DODGE_RE = re.compile(
     r"how would you like|"
     r"how may i be of|ready to (help|assist|dive|get started)|"
     r"how can i assist|let me know what you'?d like|"
+    r"would you like me to|"
     r"what you'?d like to (tackle|work on|do next))\b",
     re.IGNORECASE)
 
@@ -394,6 +395,15 @@ class Agent:
                 logger.info("planner: multi-step assignment → smart tier + "
                             "receipts mandatory (%.2f)",
                             plan_verdict["confidence"])
+                # Multi-step assignments are exactly where small local
+                # models flail (wrong args, dodges — observed live). When a
+                # frontier brain is configured, hand the assignment to it
+                # directly instead of discovering that the hard way.
+                if getattr(self.llm, "frontier_enabled", False):
+                    model = self.llm.model_frontier
+                    self.llm.last_route_reason = "plan multi-step → frontier"
+                    logger.info("planner: multi-step assignment → frontier "
+                                "tier (%s)", model)
                 # M2: record the commitment durably — history trimming must
                 # never be able to amputate an accepted assignment.
                 try:
@@ -410,6 +420,14 @@ class Agent:
             tool_mandatory = True
             logger.info("planner unsure/absent but %d action verbs — "
                         "receipts mandatory anyway", len(hint_hits))
+            # Same reasoning as the planner path: multi-action assignments
+            # flail on small local tiers — hand them to the frontier brain
+            # when one is configured.
+            if getattr(self.llm, "frontier_enabled", False):
+                model = self.llm.model_frontier
+                self.llm.last_route_reason = "multi-action → frontier"
+                logger.info("multi-action assignment → frontier tier (%s) "
+                            "via verb fallback", model)
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -888,6 +906,54 @@ class Agent:
                 {"role": "user", "content": _gate_msg},
             ]
             receipts = list(tools_used)
+
+            def _gate_exec(calls) -> str:
+                """Execute gate-retry calls with approval parking.
+                Returns 'parked' | 'receipts' | 'none'."""
+                nonlocal reply, approval_hold
+                made = False
+                for call in calls[:5]:
+                    # The gate pressures the model to act — under that
+                    # pressure it may emit a SENSITIVE call. Executing that
+                    # raw would bypass the approval gate entirely
+                    # ("autonomous, not unsupervised"), so park it exactly
+                    # like the main loop: the owner decides, the gate never
+                    # overrides.
+                    if approvals_on:
+                        try:
+                            needs = approvals.assess(call["name"],
+                                                     call["arguments"])
+                        except Exception:  # pragma: no cover - defensive
+                            needs = None
+                        if needs:
+                            approvals.request(
+                                self.session_id, call["name"],
+                                call["arguments"], needs,
+                                interface=self.interface)
+                            reply = (
+                                f"One moment, sir — this one needs your "
+                                f"say-so: I'd like to **{needs}**. Reply "
+                                f"**approve** and I shall do it at once, "
+                                f"**approve always** to grant this exact "
+                                f"operation going forward, or **reject** "
+                                f"and I'll stand down.")
+                            approval_hold = True
+                            logger.info("completion gate parked sensitive "
+                                        "call %s for approval", call["name"])
+                            return "parked"
+                    try:
+                        output = self.registry.call(call["name"],
+                                                    call["arguments"])
+                    except Exception as exc:  # pragma: no cover
+                        output = (f"Error: tool {call['name']} "
+                                  f"failed: {exc}")
+                    receipts.append(call["name"])
+                    retry_messages.append({
+                        "role": "tool", "tool_call_id": call["id"],
+                        "content": str(output)})
+                    made = True
+                return "receipts" if made else "none"
+
             try:
                 # Bounded loop, mirroring the claimed-action nudge: one shot
                 # is not enough for a model that narrates instead of
@@ -914,46 +980,8 @@ class Agent:
                                 "plainly state you cannot.")})
                             continue
                         break
-                    for call in gate_calls[:5]:
-                        # The gate pressures the model to act — under that
-                        # pressure it may emit a SENSITIVE call. Executing
-                        # that raw would bypass the approval gate entirely
-                        # ("autonomous, not unsupervised"), so park it
-                        # exactly like the main loop does: the owner
-                        # decides, the gate never overrides.
-                        if approvals_on:
-                            try:
-                                needs = approvals.assess(call["name"],
-                                                         call["arguments"])
-                            except Exception:  # pragma: no cover - defensive
-                                needs = None
-                            if needs:
-                                approvals.request(
-                                    self.session_id, call["name"],
-                                    call["arguments"], needs,
-                                    interface=self.interface)
-                                reply = (
-                                    f"One moment, sir — this one needs your "
-                                    f"say-so: I'd like to **{needs}**. Reply "
-                                    f"**approve** and I shall do it at once, "
-                                    f"**approve always** to grant this exact "
-                                    f"operation going forward, or **reject** "
-                                    f"and I'll stand down.")
-                                approval_hold = True
-                                logger.info("completion gate parked sensitive "
-                                            "call %s for approval",
-                                            call["name"])
-                                break
-                        try:
-                            output = self.registry.call(call["name"],
-                                                        call["arguments"])
-                        except Exception as exc:  # pragma: no cover
-                            output = (f"Error: tool {call['name']} "
-                                      f"failed: {exc}")
-                        receipts.append(call["name"])
-                        retry_messages.append({
-                            "role": "tool", "tool_call_id": call["id"],
-                            "content": str(output)})
+                    if _gate_exec(gate_calls) == "parked":
+                        break
                     if approval_hold or len(receipts) > len(tools_used):
                         break
                 if approval_hold:
@@ -976,6 +1004,56 @@ class Agent:
                         and len(reply.strip()) >= 300
                         and not _DODGE_RE.search(reply))
                     if not _grounded:
+                        # Last resort before admitting defeat: the frontier
+                        # brain gets one shot at the assignment with the FULL
+                        # tool list. Local tiers flail on multi-step work
+                        # (wrong args, dodges); the cloud model usually
+                        # doesn't.
+                        frontier_model = getattr(self.llm, "model_frontier", "")
+                        if (frontier_model
+                                and getattr(self.llm, "frontier_enabled", False)
+                                and model != frontier_model):
+                            try:
+                                logger.info("completion gate: escalating to "
+                                            "frontier %s", frontier_model)
+                                fres = self.llm.chat(
+                                    retry_messages, tools=schemas or None,
+                                    model=frontier_model)
+                                fcalls = fres.get("tool_calls") or []
+                                for _c in fcalls:
+                                    _c["name"] = self._sanitize_tool_name(
+                                        _c.get("name"))
+                                if fcalls:
+                                    if (_gate_exec(fcalls) == "receipts"
+                                            and len(receipts)
+                                            > len(tools_used)):
+                                        tools_used = receipts
+                                        result3 = self.llm.chat(
+                                            retry_messages,
+                                            model=frontier_model)
+                                        cand = (result3.get("content")
+                                                or "").strip()
+                                        if cand:
+                                            reply = cand
+                                elif tools_used:
+                                    cand = (fres.get("content")
+                                            or "").strip()
+                                    if (cand and len(cand) >= 300
+                                            and not _DODGE_RE.search(cand)):
+                                        reply = cand
+                                if not approval_hold:
+                                    escalated = True
+                                    model = frontier_model
+                                    self.llm.last_route_reason = (
+                                        "gate → frontier")
+                            except Exception:
+                                logger.exception(
+                                    "gate frontier escalation failed")
+                    _grounded = bool(
+                        tools_used and reply.strip()
+                        and len(reply.strip()) >= 300
+                        and not _DODGE_RE.search(reply))
+                    if not _grounded and not approval_hold:
                         reply = (
                             "I must be straight with you, sir: that assignment "
                             "needs real actions, and I could not complete them "

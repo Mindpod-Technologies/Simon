@@ -88,6 +88,25 @@ def test_invented_arg_filter_cached_and_recomputed_on_reregister():
     assert registry.call("t", {"a": 1, "junk": 2}) == "v2:12"
 
 
+def test_missing_required_arg_returns_schema_guidance():
+    """Wrong-args TypeError must come back as model-actionable guidance
+    naming the required fields, not opaque Python-speak."""
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="create_document",
+        description="Create a document.",
+        parameters={"type": "object",
+                    "properties": {"title": {"type": "string"}},
+                    "required": ["title"]},
+        func=lambda title: f"doc:{title}",
+    ))
+    out = registry.call("create_document", {"file_path": "x.md"})
+    assert out.startswith("Error")
+    assert "title" in out and "required" in out.lower()
+    # And the corrected retry then works:
+    assert registry.call("create_document", {"title": "PRD"}) == "doc:PRD"
+
+
 def test_unknown_tool_returns_error_string_not_exception():
     registry = ToolRegistry()
     result = registry.call("does_not_exist", {})

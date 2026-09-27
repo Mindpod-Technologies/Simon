@@ -333,6 +333,48 @@ def test_final_sweep_delivers_raw_output_when_model_dodges(db, monkeypatch):
     assert "Bento is a daily task-planning app" in reply
 
 
+class FrontierRescueLLM(GreetingLLM):
+    """Local tier dodges every gate round; the frontier brain acts."""
+
+    model = "smart"
+    model_fast = "fast"
+    model_frontier = "frontier"
+    frontier_enabled = True
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if model == "frontier":
+            if not any(m.get("role") == "tool" for m in messages):
+                return {"content": None, "tool_calls": [{
+                    "id": "f1", "name": "web_search",
+                    "arguments": {"query": "Bento planning app"}}]}
+            return {"content": "From the frontier: Bento is a daily "
+                               "planning app built around a focus list. " * 5,
+                    "tool_calls": []}
+        return {"content": "Hello Jae! How can I help?", "tool_calls": []}
+
+
+def test_gate_escalates_to_frontier_before_honest_failure(db, monkeypatch):
+    """When the local tier cannot complete a tool-mandatory turn, the
+    frontier model gets one shot with full tools BEFORE the honest-failure
+    floor — hard assignments should complete, not apologise."""
+    registry = FakeRegistry()
+    agent = _agent(FrontierRescueLLM(), registry, monkeypatch, MULTI_PLAN)
+    reply = agent.handle(ASSIGNMENT)
+    assert registry.executed == [("web_search",
+                                  {"query": "Bento planning app"})]
+    assert "From the frontier" in reply
+    assert "nothing has been done" not in reply.lower()
+
+
+def test_frontier_absent_keeps_honest_floor(db, monkeypatch):
+    """No frontier configured → the honest-failure floor stands."""
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, MULTI_PLAN)
+    reply = agent.handle(ASSIGNMENT)
+    assert "nothing has been done" in reply.lower()
+
+
 def test_sanitize_tool_name_strips_leaked_markup(db, monkeypatch):
     """Models leak chat markup into tool-call names under context pressure
     ('assistant<|channel|>mcp_github_list_contents' seen live 2026-09-26)."""

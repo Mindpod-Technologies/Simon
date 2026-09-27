@@ -77,6 +77,19 @@ class ToolRegistry:
                 args = {k: v for k, v in args.items() if k in accepted}
         try:
             result = t.func(**args)
+        except TypeError as exc:
+            # The model called with wrong/missing args — reply with the
+            # schema's required fields in plain language so its next call
+            # self-corrects, instead of opaque Python-speak.
+            required = (t.parameters or {}).get("required") or []
+            if required and "required positional argument" in str(exc):
+                log.warning("tool %r arg mismatch: %s", name, exc)
+                return (f"Error: tool '{name}' was called with wrong or "
+                        f"missing arguments. Required argument(s): "
+                        f"{', '.join(required)}. Retry the call with exactly "
+                        f"these argument names.")
+            log.warning("tool %r failed: %s", name, exc)
+            return f"Error: {exc}"
         except Exception as exc:  # noqa: BLE001 - must never raise
             log.warning("tool %r failed: %s", name, exc)
             return f"Error: {exc}"
