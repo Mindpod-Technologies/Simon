@@ -398,22 +398,28 @@ class Agent:
                 plan_verdict = None
         if (plan_verdict
                 and plan_verdict.get("confidence", 0) >= 0.65
-                and plan_verdict.get("tools_required")):
+                and plan_verdict.get("tools_required")
+                and plan_verdict.get("multi_step")):
+            # The planner gates ONLY on multi-step verdicts. Laya's
+            # calibration is sloppy at the single-step boundary (a bare
+            # greeting scored tool_single at 0.81 in A/B, 2026-09-28) —
+            # letting tool_single gate would convert simple asks into
+            # false honest-failures. Single-step tool needs are already
+            # covered by named-tool/explicit-intent routing and the guards.
             tool_mandatory = True
-            if plan_verdict.get("multi_step"):
-                model = self.llm.model
-                self.llm.last_route_reason = (
-                    f"plan multi-step ({plan_verdict['confidence']:.2f})")
-                logger.info("planner: multi-step assignment → smart tier + "
-                            "receipts mandatory (%.2f)",
-                            plan_verdict["confidence"])
-                # M2: record the commitment durably — history trimming must
-                # never be able to amputate an accepted assignment.
-                try:
-                    from . import assignments
-                    assignments.open_assignment(self.session_id, user_text)
-                except Exception:  # pragma: no cover - never break a turn
-                    pass
+            model = self.llm.model
+            self.llm.last_route_reason = (
+                f"plan multi-step ({plan_verdict['confidence']:.2f})")
+            logger.info("planner: multi-step assignment → smart tier + "
+                        "receipts mandatory (%.2f)",
+                        plan_verdict["confidence"])
+            # M2: record the commitment durably — history trimming must
+            # never be able to amputate an accepted assignment.
+            try:
+                from . import assignments
+                assignments.open_assignment(self.session_id, user_text)
+            except Exception:  # pragma: no cover - never break a turn
+                pass
         elif len(hint_hits) >= 2:
             # The planner is a stochastic model call — when it is unsure,
             # unavailable, or WRONG about an unmistakably multi-action
