@@ -399,6 +399,107 @@ def test_exhausted_loop_with_receipts_still_delivers(db, monkeypatch):
     assert not agent.last_turn_exhausted
 
 
+# ---- structured final-answer contract (constrained decoding) -------------
+
+class StructuredDodgeLLM(GreetingLLM):
+    """Calls a real tool, dodges in prose, then answers under constraint."""
+
+    FINAL_ANSWER_SCHEMA = {"type": "object"}  # stand-in marker attr
+
+    def __init__(self, payload):
+        super().__init__()
+        self._payload = payload
+
+    def chat_structured(self, messages, schema, model=None, name="x"):
+        return self._payload
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": None, "tool_calls": [{
+                "id": "c1", "name": "web_search",
+                "arguments": {"query": "bento"}}]}
+        return {"content": "Hi! How can I help you today?", "tool_calls": []}
+
+
+def test_structured_answer_delivers_after_dodge(db, monkeypatch):
+    payload = {"answer": "Bento is a daily-planning app built around a "
+                         "focus list, per the search results.",
+               "actions_taken": ["web_search"], "unfinished": []}
+    registry = FakeRegistry()
+    agent = _agent(StructuredDodgeLLM(payload), registry, monkeypatch,
+                   CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "daily-planning app" in reply
+    assert "How can I help" not in reply
+
+
+def test_structured_answer_claiming_non_receipt_action_is_rejected(
+        db, monkeypatch):
+    """actions_taken claiming a tool that never ran → answer rejected, and
+    the fallbacks (raw-output floor) deliver real data instead."""
+    payload = {"answer": "I emailed you the full report, sir.",
+               "actions_taken": ["web_search", "send_email"],
+               "unfinished": []}
+    registry = FakeRegistry()
+    agent = _agent(StructuredDodgeLLM(payload), registry, monkeypatch,
+                   CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "emailed" not in reply.lower()
+    assert "Bento is a daily task-planning app" in reply  # raw floor
+
+
+def test_structured_dodge_inside_answer_is_rejected(db, monkeypatch):
+    payload = {"answer": "How can I assist you today?",
+               "actions_taken": ["web_search"], "unfinished": []}
+    registry = FakeRegistry()
+    agent = _agent(StructuredDodgeLLM(payload), registry, monkeypatch,
+                   CHAT_PLAN)
+    reply = agent.handle("what is the Bento app?")
+    assert "How can I assist" not in reply
+    assert "Bento is a daily task-planning app" in reply
+
+
+class CalcRegistry(FakeRegistry):
+    def __init__(self):
+        super().__init__(extra_tools=("calculator",))
+
+    def call(self, name, args):
+        if name == "calculator":
+            import ast
+            expr = args.get("expression", "")
+            node = ast.parse(expr, mode="eval")
+            allowed = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Num,
+                       ast.Constant, ast.Add, ast.Sub, ast.Mult, ast.Div,
+                       ast.Mod, ast.USub, ast.UAdd, ast.Pow)
+            if not all(isinstance(n, allowed) for n in ast.walk(node)):
+                return "Error: unsafe"
+            self.executed.append((name, args))
+            return str(eval(compile(node, "<calc>", "eval")))  # noqa: S307
+        return super().call(name, args)
+
+
+def test_pure_arithmetic_is_deterministic(db, monkeypatch):
+    """Mental-math flake guard: 'What is 17 times 23?' must ALWAYS be 391 —
+    computed by the tool, never guessed by a small model (live flake:
+    401 once, 391 the next run, 2026-09-28)."""
+    registry = CalcRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, CHAT_PLAN)
+    reply = agent.handle("What is 17 times 23?")
+    assert "391" in reply
+    assert registry.executed == [("calculator", {"expression": "17  *  23"})]
+    assert agent.llm.calls == 0  # zero model calls — instant and exact
+
+
+def test_mixed_message_not_arithmetic_intercepted(db, monkeypatch):
+    """A fact + question combo still goes through the normal turn."""
+    registry = CalcRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, CHAT_PLAN)
+    agent.handle("The wifi is Mindpod-Guest-7. Also, what is 12 percent "
+                 "of 850?")
+    assert not any(n == "calculator" for n, _ in registry.executed)
+
+
 def test_sanitize_tool_name_strips_leaked_markup(db, monkeypatch):
     """Models leak chat markup into tool-call names under context pressure
     ('assistant<|channel|>mcp_github_list_contents' seen live 2026-09-26)."""

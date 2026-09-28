@@ -42,9 +42,9 @@ _DODGE_RE = re.compile(
     r"what (would you like|can i do|shall we)|"
     r"how would you like|"
     r"how may i be of|ready to (help|assist|dive|get started)|"
-    r"how can i assist|let me know what you'?d like|"
+    r"how can i assist|let me know what you['’]?d like|"
     r"would you like me to|"
-    r"what you'?d like to (tackle|work on|do next))\b",
+    r"what you['’]?d like to (tackle|work on|do next))\b",
     re.IGNORECASE)
 
 # Tool-schema pruning: with MCP servers connected, the full schema list is
@@ -740,6 +740,26 @@ class Agent:
                         reply_len=len(reply), user_len=len(user_text))
                     return reply
 
+        # Deterministic arithmetic: a PURE math question must not depend on
+        # a small model's mental arithmetic (live eval flake 2026-09-28:
+        # "17 times 23" → 401 once, 391 the next run). The calculator tool
+        # is ground truth; the answer ships instantly, no model call.
+        arith = self._extract_arithmetic(user_text)
+        if not reply and arith and "calculator" in self.registry:
+            output = self.registry.call("calculator", {"expression": arith})
+            if not str(output).startswith("Error"):
+                tools_used.append("calculator")
+                reply = f"{output}, sir — computed precisely."
+                memory.add_message(self.session_id, "assistant", reply)
+                obs.record_event(
+                    "turn", interface=self.interface,
+                    session_id=self.session_id, model="(none)",
+                    route_reason="deterministic arithmetic",
+                    latency_ms=int((time.monotonic() - t0) * 1000),
+                    tools=tools_used, tool_errors=0, escalated=False,
+                    reply_len=len(reply), user_len=len(user_text))
+                return reply
+
         fast_model = getattr(self.llm, "model_fast", None)
         # Frontier turns do heavy multi-step work (research → fetches →
         # documents); the local-sized budget of 5 iterations ran out
@@ -897,8 +917,14 @@ class Agent:
                     logger.exception("frontier rescue failed")
             if not reply and tool_outputs:
                 # The work HAPPENED (receipts in context) but the iteration
-                # budget ran out before the write-up — one clean no-tools
-                # shot at the deliverable from what the tools produced.
+                # budget ran out before the write-up — constrained shot at
+                # the deliverable first (grammar-forced, verifiable), then a
+                # plain no-tools shot, then the verbatim floor.
+                structured = self._structured_grounded_answer(
+                    messages, tools_used, model)
+                if structured:
+                    reply = structured
+            if not reply and tool_outputs:
                 try:
                     fin = self.llm.chat(messages + [
                         {"role": "user", "content": (
@@ -1054,15 +1080,25 @@ class Agent:
                 else:
                     if len(receipts) > len(tools_used):
                         tools_used = receipts
-                        result2 = self.llm.chat(retry_messages,
-                                                model=model or self.llm.model)
-                        candidate = (result2.get("content") or "").strip()
-                        # A dodge summary is no summary at all — leave reply
-                        # as-is so the grounded/frontier path below engages.
-                        if candidate and not (
-                                len(candidate) < 400
-                                and _DODGE_RE.search(candidate)):
-                            reply = candidate
+                        # Constrained composition first: one grammar-forced
+                        # shot with verifiable actions_taken beats a free-text
+                        # summary that can dodge or confabulate.
+                        structured = self._structured_grounded_answer(
+                            retry_messages, receipts, model)
+                        if structured:
+                            reply = structured
+                        else:
+                            result2 = self.llm.chat(
+                                retry_messages,
+                                model=model or self.llm.model)
+                            candidate = (result2.get("content") or "").strip()
+                            # A dodge summary is no summary at all — leave
+                            # reply as-is so the grounded/frontier path below
+                            # engages.
+                            if candidate and not (
+                                    len(candidate) < 400
+                                    and _DODGE_RE.search(candidate)):
+                                reply = candidate
                     # When the turn holds real tool output, a substantive
                     # non-dodge answer built from that output is grounded —
                     # accept it. Zero-receipt turns stay strict: prose cannot
@@ -1139,26 +1175,35 @@ class Agent:
                 and len(reply.strip()) < 400 and _DODGE_RE.search(reply)):
             logger.warning("dodge reply despite %d receipt(s) — grounding "
                            "from tool output", len(tools_used))
-            ground_messages = messages + [
-                {"role": "assistant", "content": reply},
-                {"role": "user", "content": (
-                    "The tools above returned REAL results and the user "
-                    "asked a direct question. Answer it NOW from those "
-                    "results, in the format and length the user requested. "
-                    "Do not ask what to do with the information, and do not "
-                    "offer options — give the answer.")},
-            ]
-            try:
-                if model is None:
-                    result = self.llm.chat(ground_messages)
-                else:
-                    result = self.llm.chat(ground_messages, model=model)
-                candidate = (result.get("content") or "").strip()
-                if candidate and not _DODGE_RE.search(candidate):
-                    reply = candidate
-                    regenerated = True
-            except Exception:
-                logger.exception("results-grounding regeneration failed")
+            # Constrained decoding first: the schema forces an answer +
+            # verifiable actions_taken in ONE shot, replacing what used to
+            # be multi-round free-text nudging.
+            structured = self._structured_grounded_answer(
+                messages, tools_used, model)
+            if structured:
+                reply = structured
+                regenerated = True
+            else:
+                ground_messages = messages + [
+                    {"role": "assistant", "content": reply},
+                    {"role": "user", "content": (
+                        "The tools above returned REAL results and the user "
+                        "asked a direct question. Answer it NOW from those "
+                        "results, in the format and length the user requested. "
+                        "Do not ask what to do with the information, and do not "
+                        "offer options — give the answer.")},
+                ]
+                try:
+                    if model is None:
+                        result = self.llm.chat(ground_messages)
+                    else:
+                        result = self.llm.chat(ground_messages, model=model)
+                    candidate = (result.get("content") or "").strip()
+                    if candidate and not _DODGE_RE.search(candidate):
+                        reply = candidate
+                        regenerated = True
+                except Exception:
+                    logger.exception("results-grounding regeneration failed")
 
         # Deterministic URL grounding: when the user's message contains a URL
         # and no fetch-type tool ran this turn, do NOT rely on the model
@@ -1551,6 +1596,46 @@ class Agent:
         chosen.sort(key=lambda x: x[0])  # restore registry order
         return [s for _, s in chosen]
 
+    def _structured_grounded_answer(self, messages, tools_used, model):
+        """One grammar-constrained shot at the final answer from real
+        receipts. The schema forces an explicit actions_taken list, which is
+        verified against the tools that ACTUALLY ran — claims not in the
+        receipt list reject the whole answer. Returns None when constrained
+        decoding is unavailable or verification fails (caller falls back to
+        the free-text path)."""
+        chat_structured = getattr(self.llm, "chat_structured", None)
+        schema = getattr(self.llm, "FINAL_ANSWER_SCHEMA", None)
+        if not callable(chat_structured) or not schema:
+            return None
+        available = ", ".join(dict.fromkeys(tools_used)) or "none"
+        payload = chat_structured(
+            messages + [{"role": "user", "content": (
+                "Answer the user NOW from the tool results above — no new "
+                "tool calls. JSON contract: 'answer' = the complete final "
+                "reply in your normal voice; 'actions_taken' = ONLY tool "
+                "names that actually ran this turn (available: "
+                f"{available}); 'unfinished' = steps genuinely not done.")}],
+            schema, model=model)
+        if not payload:
+            return None
+        answer = str(payload.get("answer") or "").strip()
+        if not answer:
+            return None
+        if len(answer) < 400 and _DODGE_RE.search(answer):
+            logger.info("structured answer was a dodge — rejected")
+            return None
+        claimed = set(payload.get("actions_taken") or [])
+        invented = claimed - set(tools_used)
+        if invented:
+            logger.warning("structured answer claimed non-receipt actions "
+                           "%s — rejecting", sorted(invented))
+            return None
+        unfinished = [str(u) for u in (payload.get("unfinished") or []) if u]
+        if unfinished:
+            answer = (answer.rstrip() + "\n\nStill outstanding: "
+                      + "; ".join(unfinished))
+        return answer
+
     def _sanitize_tool_name(self, name: str) -> str:
         """Models sometimes leak chat markup into tool-call names
         ('assistant<|channel|>mcp_github_list_contents' seen live). Strip the
@@ -1571,6 +1656,39 @@ class Agent:
                            matches[0], name)
             return matches[0]
         return cleaned
+
+    _ARITH_Q_RE = re.compile(
+        r"^\s*(?:simon[,\s]+)?(?:what(?:'s| is)|how much is|calculate|compute)"
+        r"\s+([\d][\d\s\.,+\-*/%()a-z]*?)\s*\??\s*$",
+        re.IGNORECASE)
+
+    _ARITH_WORD_OPS = [
+        ("multiplied by", "*"), ("added to", "+"), ("divided by", "/"),
+        ("percent of", "/ 100 *"), ("times", "*"), ("plus", "+"),
+        ("minus", "-"), ("over", "/"), ("x", "*"),
+    ]
+
+    @classmethod
+    def _extract_arithmetic(cls, text: str):
+        """Pure arithmetic question → a safe expression, else None.
+
+        Word operators translate ("times" → "*", "percent of" → "/100*");
+        the result must contain only digits/operators and at least one
+        operator. Mixed messages (fact + question) are NOT intercepted.
+        """
+        m = cls._ARITH_Q_RE.match(text)
+        if not m:
+            return None
+        expr = m.group(1).lower()
+        if not any(w in expr for w, _ in cls._ARITH_WORD_OPS) \
+                and not re.search(r"[+\-*/%]", expr):
+            return None
+        for word, op in cls._ARITH_WORD_OPS:
+            expr = re.sub(rf"\b{re.escape(word)}\b", f" {op} ", expr)
+        expr = expr.replace(",", "").strip()
+        if not re.fullmatch(r"[\d\s.+\-*/()%]+", expr):
+            return None
+        return expr
 
     _READ_ONLY_PATH_TOOLS = {"list_files", "read_file"}
 

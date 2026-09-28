@@ -309,6 +309,66 @@ class LLM:
             "tool_calls": self._normalize_tool_calls(message),
         }
 
+    # Structured final-answer contract (constrained decoding): receipts turns
+    # must report which tools they ACTUALLY used — verifiable against the
+    # turn's real receipt list. Grammar-forced JSON kills the dodge class
+    # structurally instead of nudging it away afterwards.
+    FINAL_ANSWER_SCHEMA: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "answer": {"type": "string"},
+            "actions_taken": {"type": "array",
+                              "items": {"type": "string"}},
+            "unfinished": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["answer", "actions_taken", "unfinished"],
+    }
+
+    def chat_structured(self, messages: list[dict], schema: dict,
+                        model: Optional[str] = None,
+                        name: str = "simon_answer") -> Optional[dict]:
+        """Grammar-constrained chat: content is FORCED to match ``schema``.
+
+        Returns the parsed JSON object, or None on any failure (caller falls
+        back to the free-text path). Local (Ollama) tier only — frontier
+        endpoints vary in json_schema support.
+        """
+        import json as _json
+        model = model or self.model
+        if "11434" not in (self.settings.llm_base_url or ""):
+            return None  # constrained decoding is an Ollama feature here
+        kwargs: dict[str, Any] = {
+            "model": model, "messages": messages,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": name, "schema": schema},
+            },
+        }
+        kwargs.update(self._extra)
+        num_ctx = (self.settings.llm_num_ctx_fast
+                   if model == self.model_fast
+                   else self.settings.llm_num_ctx_smart)
+        kwargs.setdefault("extra_body", {})
+        kwargs["extra_body"] = {**kwargs["extra_body"], "num_ctx": num_ctx}
+        # reasoning_effort:"none" + response_format = EMPTY content on
+        # gpt-oss (bisected live 2026-09-28) — constrained decoding needs
+        # the reasoning pass to produce the JSON.
+        kwargs["extra_body"].pop("reasoning_effort", None)
+        try:
+            response = self._client.chat.completions.create(**kwargs)
+        except Exception as exc:  # noqa: BLE001 - fall back to free text
+            log.info("structured chat failed (falling back): %s", exc)
+            return None
+        self._log_usage(model, response)
+        if not response.choices:
+            return None
+        content = response.choices[0].message.content or ""
+        try:
+            parsed = _json.loads(content)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+
     @staticmethod
     def _log_usage(model: str, response: Any) -> None:
         """Log prompt/completion token counts when the endpoint reports
