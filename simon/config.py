@@ -134,8 +134,9 @@ class Settings(BaseSettings):
     simon_approvals_enabled: bool = True
 
     # Minutes a pending approval stays live. Async asks from background
-    # jobs get answered hours later; 60m silently expired one on 2026-09-27.
-    simon_approval_ttl_minutes: int = 720
+    # jobs get answered hours later; 60m silently expired one on 2026-09-27,
+    # and 12h still lapsed overnight before a morning approve (2026-09-28).
+    simon_approval_ttl_minutes: int = 1440
 
     # MCP client (connect to Model Context Protocol servers listed in a
     # Claude-Desktop-style mcp.json; their tools appear as mcp_<server>_<tool>)

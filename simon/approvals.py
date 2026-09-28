@@ -48,10 +48,10 @@ CREATE TABLE IF NOT EXISTS approval_grants (
 def _ttl_minutes() -> int:
     try:
         from .config import get_settings
-        return int(getattr(get_settings(), "simon_approval_ttl_minutes", 720)
-                   or 720)
+        return int(getattr(get_settings(), "simon_approval_ttl_minutes", 1440)
+                   or 1440)
     except Exception:  # pragma: no cover - config must never break this
-        return 720
+        return 1440
 
 # ---------------------------------------------------------------------------
 # Policy: which tool calls need approval
