@@ -55,7 +55,21 @@ def init_db(path: Optional[str] = None) -> None:
     conn = _connect(path)
     try:
         conn.executescript(_SCHEMA)
-        conn.commit()
+        # Provenance migration (2026-09-28): every fact carries its source
+        # ('user' = stated by a human, 'model' = inferred by Simon) and a
+        # quarantine flag. Two production incidents were memory poisoning —
+        # model-written fabrications injected as ground truth for weeks.
+        for ddl in (
+            "ALTER TABLE facts ADD COLUMN source TEXT NOT NULL"
+            " DEFAULT 'user'",
+            "ALTER TABLE facts ADD COLUMN quarantined INTEGER NOT NULL"
+            " DEFAULT 0",
+        ):
+            try:
+                conn.execute(ddl)
+                conn.commit()
+            except Exception:  # column already exists
+                pass
     finally:
         conn.close()
 
@@ -93,17 +107,45 @@ def get_history(session_id: str, limit: int = 40,
             for row in reversed(rows)]
 
 
-def set_fact(key: str, value: str, path: Optional[str] = None) -> None:
-    """Insert or update a long-term fact."""
+def set_fact(key: str, value: str, path: Optional[str] = None,
+             source: str = "user") -> None:
+    """Insert or update a long-term fact, tagged with its provenance."""
+    if source not in ("user", "model"):
+        source = "model"
     conn = _connect(path)
     try:
         conn.execute(
-            "INSERT INTO facts (key, value, updated_at) VALUES (?, ?, datetime('now')) "
+            "INSERT INTO facts (key, value, source, updated_at)"
+            " VALUES (?, ?, ?, datetime('now')) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
-            "updated_at = excluded.updated_at",
-            (key, value),
+            "source = excluded.source, updated_at = excluded.updated_at",
+            (key, value, source),
         )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def quarantine_fact(key: str, path: Optional[str] = None) -> bool:
+    """Quarantine a fact: kept for audit, excluded from recall."""
+    conn = _connect(path)
+    try:
+        cur = conn.execute(
+            "UPDATE facts SET quarantined = 1 WHERE key = ?", (key,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def unquarantine_fact(key: str, path: Optional[str] = None) -> bool:
+    """Lift a quarantine (the fact was verified after all)."""
+    conn = _connect(path)
+    try:
+        cur = conn.execute(
+            "UPDATE facts SET quarantined = 0 WHERE key = ?", (key,))
+        conn.commit()
+        return cur.rowcount > 0
     finally:
         conn.close()
 
@@ -158,8 +200,15 @@ def significant_words(text: str) -> list[str]:
     return [w for w in words if w and w not in _QUERY_STOPWORDS]
 
 
-def search_facts(query: str, path: Optional[str] = None) -> list[tuple[str, str]]:
+def search_facts(query: str, path: Optional[str] = None,
+                 detailed: bool = False) -> list:
     """Return ``(key, value)`` pairs relevant to ``query``.
+
+    Quarantined facts are excluded. User-sourced facts outrank
+    model-inferred ones at equal word score — a human's statement is
+    stronger evidence than the model's inference. ``detailed=True`` returns
+    ``(key, value, source)`` triples so the caller can label unverified
+    entries.
 
     Word-based matching: the query is split into significant words
     (stopwords removed), and each fact's key+value (underscores treated as
@@ -171,23 +220,35 @@ def search_facts(query: str, path: Optional[str] = None) -> list[tuple[str, str]
 
     conn = _connect(path)
     try:
-        rows = conn.execute("SELECT key, value FROM facts").fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT key, value, source FROM facts"
+                " WHERE quarantined = 0").fetchall()
+        except Exception:  # pre-migration database
+            rows = conn.execute("SELECT key, value FROM facts").fetchall()
     finally:
         conn.close()
 
+    def _pack(row):
+        source = row["source"] if "source" in row.keys() else "user"
+        return ((row["key"], row["value"], source) if detailed
+                else (row["key"], row["value"]))
+
     if not significant:
         like = (query or "").lower()
-        return [(r["key"], r["value"]) for r in rows
+        return [_pack(r) for r in rows
                 if like in r["key"].lower() or like in r["value"].lower()]
 
-    scored: list[tuple[int, str, str]] = []
+    scored: list[tuple[int, int, Any]] = []
     for row in rows:
         haystack = f"{row['key'].replace('_', ' ')} {row['value']}".lower()
         score = sum(1 for w in significant if w in haystack)
         if score:
-            scored.append((score, row["key"], row["value"]))
-    scored.sort(key=lambda item: (-item[0], item[1]))
-    return [(key, value) for _score, key, value in scored]
+            source = row["source"] if "source" in row.keys() else "user"
+            trust = 0 if source == "user" else 1
+            scored.append((score, trust, row))
+    scored.sort(key=lambda item: (-item[0], item[1], item[2]["key"]))
+    return [_pack(row) for _score, _trust, row in scored]
 
 
 def add_reminder(text: str, run_at_iso: str, session_id: str = "",

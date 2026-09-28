@@ -204,8 +204,9 @@ class Agent:
     @_track_interactive
     def handle(self, user_text: str) -> str:
         """Handle one user turn; record an 'error' event if the turn crashes."""
-        from .context import current_session
+        from .context import current_session, current_user_text
         token = current_session.set(self.session_id)
+        text_token = current_user_text.set(user_text or "")
         try:
             return self._handle(user_text)
         except Exception as exc:
@@ -217,6 +218,7 @@ class Agent:
                 user_text=user_text[:200])
             raise
         finally:
+            current_user_text.reset(text_token)
             current_session.reset(token)
 
     def _handle(self, user_text: str) -> str:
@@ -1877,12 +1879,21 @@ class Agent:
                 f"preferences never merge with the owner's.")
         # Deterministic recall: surface relevant remembered facts directly in
         # the system prompt so the model need not rely on calling a tool.
+        # Provenance: model-inferred facts are labeled UNVERIFIED — the model
+        # may use them, but never present them as certain (two poisoning
+        # incidents came from inferred facts being treated as gospel).
         try:
-            facts = memory.search_facts(user_text)
+            facts = memory.search_facts(user_text, detailed=True)
         except Exception:  # pragma: no cover - memory must never break a turn
             facts = []
         if facts:
-            lines = "\n".join(f"- {k}: {v}" for k, v in facts[:5])
+            def _fact_line(item):
+                k, v = item[0], item[1]
+                source = item[2] if len(item) > 2 else "user"
+                return (f"- {k}: {v}" if source == "user"
+                        else f"- {k}: {v}  (UNVERIFIED — inferred, confirm "
+                             f"before relying on it)")
+            lines = "\n".join(_fact_line(f) for f in facts[:5])
             system_prompt += ("\n\nPossibly relevant remembered facts "
                               "(use naturally if pertinent):\n" + lines)
         # Skills index: name + one-liner for each installed skill. The model

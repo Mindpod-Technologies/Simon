@@ -31,6 +31,7 @@ MAIL_CHECK_MINUTES = 5  # default inbox poll cadence (env-tunable)
 SUGGEST_DAY_OF_WEEK = "sat"
 SUGGEST_HOUR = 10
 SUGGEST_MINUTE = 12
+MAINTENANCE_MINUTE = 23  # every 2 hours, off-peak minute (owner directive)
 
 TASK_PROMPT = (
     "This is your scheduled recurring task. Execute it now, autonomously, "
@@ -124,6 +125,16 @@ class Scheduler:
                 self._hourly_status,
                 CronTrigger(minute=STATUS_MINUTE, hour="7-23"),
                 id="hourly_status",
+                replace_existing=True,
+            )
+        # Self-maintenance (owner directive 2026-09-28): every 2 hours —
+        # service health with auto-restart, deterministic eval battery,
+        # error/job/approval hygiene, digested to the owner.
+        if getattr(self.settings, "simon_maintenance_enabled", True):
+            self._scheduler.add_job(
+                self._maintenance_pass,
+                CronTrigger(hour="*/2", minute=MAINTENANCE_MINUTE),
+                id="maintenance",
                 replace_existing=True,
             )
         # User-defined recurring schedules, created in chat via the
@@ -440,6 +451,32 @@ class Scheduler:
                     f"\n\n{result}")
         except Exception:
             logger.exception("scheduled task %d failed", schedule_id)
+
+    async def _maintenance_pass(self) -> None:
+        """2-hourly self-maintenance: health, evals, hygiene — one digest."""
+        # Interactive priority: skip this tick while the owner is talking;
+        # the next tick is at most 2 hours away.
+        from . import agent as agent_mod
+        if agent_mod.interactive_session_active():
+            logger.info("maintenance deferred — interactive session active")
+            return
+        from . import maintenance
+        from .agent import Agent
+        from .tools import build_default_registry
+
+        def _factory(session_id: str) -> Agent:
+            return Agent(self.settings,
+                         registry=build_default_registry(self.settings),
+                         session_id=session_id, interface="maintenance")
+
+        try:
+            digest = await asyncio.to_thread(
+                maintenance.run_maintenance, self.settings, None,
+                maintenance._probe_port, maintenance._restart_service,
+                _factory)
+            self.notify(f"🔧 {digest}")
+        except Exception:
+            logger.exception("maintenance pass failed")
 
     async def _weekly_suggestions(self) -> None:
         """Analyse recent usage and propose automations the user didn't ask for."""

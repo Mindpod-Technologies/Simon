@@ -148,3 +148,12 @@ Dashboards (sign in with your Simon password):
 - Structured final answers follow the offload (json_schema verified on the gateway).
 - Frontier extras (reasoning_effort=high) apply to the frontier model only — the cheap lane
   stays fast. Tier map: fast=qwen3:8b local · smart=auto/cheap via OmniRoute · assignments/escalations=auto (best).
+
+## 2026-09-28 — Fact provenance + 2-hourly self-maintenance
+- **Provenance**: every fact carries source ('user' stated vs 'model' inferred) + quarantine flag.
+  remember_fact marks facts user-sourced only when the human actually stated them; model-inferred
+  facts are injected with an UNVERIFIED label (guards against the two memory-poisoning incidents).
+- **Maintenance pass** (simon/maintenance.py, cron */2h at :23): service health with auto-restart
+  of dead com.simon.* services, deterministic eval battery (arithmetic/honesty/capabilities),
+  GPU-assertion + error scan (windowed), job-queue and approval hygiene. Compact digest to the
+  owner's Telegram; code-level bugs are REPORTED, never auto-"fixed".

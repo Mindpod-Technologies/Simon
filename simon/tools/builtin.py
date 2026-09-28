@@ -311,8 +311,17 @@ def _read_notes(settings) -> str:
 
 def _remember_fact(key: str, value: str) -> str:
     from simon import memory
+    from simon.context import current_user_text
 
-    memory.set_fact(key, value)
+    # Provenance: a fact is "user"-sourced only when the human actually
+    # stated it in this message (their words cover the value's significant
+    # words). Otherwise the model INFERRED it — and model-inferred facts
+    # are labeled unverified at recall, the guard against the two memory
+    # poisoning incidents (fabricated "facts" re-quoted for weeks).
+    utterance = current_user_text.get("").lower()
+    value_words = [w for w in memory.significant_words(str(value))]
+    stated = bool(value_words) and all(w in utterance for w in value_words)
+    memory.set_fact(key, value, source="user" if stated else "model")
     return f"Remembered: {key}"
 
 
