@@ -300,3 +300,55 @@ def test_exhausted_loop_rescued_by_frontier(tmp_path, monkeypatch):
     assert reply == "Frontier untangled it, sir."
     assert llm.seen_models[-1] == "kimi-k3"
     assert llm.last_route_reason == "frontier rescue"
+
+
+# ---------------------------------------------------------------------------
+# Remote smart tier (OmniRoute offload)
+# ---------------------------------------------------------------------------
+
+def test_smart_tier_offloaded_to_remote(fake_openai):
+    """llm_smart_remote set → everyday smart turns go through the gateway
+    with the remote id; the local 20B never loads."""
+    llm = LLM(_settings(llm_frontier_api_key="k", llm_frontier_model="auto",
+                        llm_smart_remote="auto/cheap"))
+    out = llm.chat([{"role": "user", "content": "hi"}])
+    gateway = FakeOpenAI.instances[-1]
+    assert gateway.requests[0]["model"] == "auto/cheap"
+    assert out["content"] == "ok"
+    assert FakeOpenAI.instances[0].requests == []  # local untouched
+
+
+def test_smart_remote_falls_back_to_local(fake_openai):
+    """Gateway down → transparent fallback to the local smart model."""
+    llm = LLM(_settings(llm_frontier_api_key="k", llm_frontier_model="auto",
+                        llm_smart_remote="auto/cheap"))
+    gateway = FakeOpenAI.instances[-1]
+
+    def boom(**kwargs):
+        raise RuntimeError("gateway down")
+
+    gateway.chat = SimpleNamespace(completions=SimpleNamespace(create=boom))
+    out = llm.chat([{"role": "user", "content": "hi"}])
+    assert out["content"] == "ok"
+    assert FakeOpenAI.instances[0].requests[0]["model"] == "smart-model"
+
+
+def test_smart_remote_off_by_default(fake_openai):
+    """No llm_smart_remote → smart turns stay local (current behavior)."""
+    llm = LLM(_settings(llm_frontier_api_key="k", llm_frontier_model="auto"))
+    llm.chat([{"role": "user", "content": "hi"}])
+    assert FakeOpenAI.instances[0].requests[0]["model"] == "smart-model"
+
+
+def test_chat_structured_follows_smart_tier_remote(fake_openai):
+    """Constrained calls ride the same offload (K3 handles json_schema)."""
+    llm = LLM(_settings(llm_frontier_api_key="k", llm_frontier_model="auto",
+                        llm_smart_remote="auto/cheap"))
+    gateway = FakeOpenAI.instances[-1]
+    gateway.reply = '{"answer": "4", "actions_taken": [], "unfinished": []}'
+    out = llm.chat_structured([{"role": "user", "content": "2+2?"}],
+                              LLM.FINAL_ANSWER_SCHEMA)
+    assert out == {"answer": "4", "actions_taken": [], "unfinished": []}
+    req = gateway.requests[0]
+    assert req["model"] == "auto/cheap"
+    assert req["response_format"]["type"] == "json_schema"

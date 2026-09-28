@@ -175,6 +175,11 @@ class LLM:
         frontier_key = getattr(settings, "llm_frontier_api_key", "") or ""
         self.frontier_enabled: bool = bool(frontier_key and
                                            self.model_frontier)
+        # Remote smart tier: when set (e.g. "auto/cheap"), everyday smart
+        # turns go through the OmniRoute gateway instead of loading the
+        # local 20B — GPU pressure and its Metal crash loops disappear.
+        self.model_smart_remote: str = getattr(
+            settings, "llm_smart_remote", "") or ""
         self._frontier_client: Optional[OpenAI] = None
         self._frontier_extra: dict[str, Any] = {}
         if self.frontier_enabled:
@@ -233,6 +238,47 @@ class LLM:
         low = f" {(user_text or '').lower()} "
         return any(p in low for p in FRONTIER_OVERRIDE_PHRASES)
 
+    def _chat_remote(self, messages: list[dict], tools: Optional[list[dict]],
+                     model_id: str, response_format: Optional[dict] = None
+                     ) -> dict:
+        """Call the OmniRoute/frontier endpoint with an arbitrary model id.
+        Bounded retry on admission-control 503s ("chat_admission_busy —
+        retry shortly" killed a live job turn on 2026-09-27)."""
+        kwargs: dict[str, Any] = {"model": model_id, "messages": messages}
+        # Frontier reasoning effort applies to the frontier model only — the
+        # cheap smart lane should stay fast.
+        if model_id == self.model_frontier:
+            kwargs.update(self._frontier_extra)
+        if tools:
+            kwargs["tools"] = tools
+        if response_format:
+            kwargs["response_format"] = response_format
+        response = None
+        last_exc: Optional[Exception] = None
+        for attempt in range(3):
+            try:
+                response = (self._frontier_client.chat.completions
+                            .create(**kwargs))
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < 2 and ("admission" in str(exc).lower()
+                                    or "503" in str(exc)):
+                    import time as _time
+                    _time.sleep(8 * (attempt + 1))
+                    continue
+                raise
+        if response is None and last_exc is not None:
+            raise last_exc
+        self._log_usage(model_id, response)
+        if not response.choices:
+            return {"content": None, "tool_calls": []}
+        message = response.choices[0].message
+        return {
+            "content": message.content or None,
+            "tool_calls": self._normalize_tool_calls(message),
+        }
+
     def chat(self, messages: list[dict],
              tools: Optional[list[dict]] = None,
              model: Optional[str] = None) -> dict:
@@ -250,39 +296,19 @@ class LLM:
         model = model or self.model
         if (self.frontier_enabled and self._frontier_client is not None
                 and model == self.model_frontier):
-            kwargs: dict[str, Any] = {"model": model, "messages": messages}
-            kwargs.update(self._frontier_extra)
-            if tools:
-                kwargs["tools"] = tools
-            response = None
-            # Admission-control 503s ("chat_admission_busy — retry shortly")
-            # killed a live job turn on 2026-09-27; the error itself says to
-            # retry. Bounded backoff, then let the caller's failure paths
-            # handle it.
-            last_exc: Optional[Exception] = None
-            for attempt in range(3):
-                try:
-                    response = (self._frontier_client.chat.completions
-                                .create(**kwargs))
-                    break
-                except Exception as exc:  # noqa: BLE001
-                    last_exc = exc
-                    if attempt < 2 and ("admission" in str(exc).lower()
-                                        or "503" in str(exc)):
-                        import time as _time
-                        _time.sleep(8 * (attempt + 1))
-                        continue
-                    raise
-            if response is None and last_exc is not None:
-                raise last_exc
-            self._log_usage(model, response)
-            if not response.choices:
-                return {"content": None, "tool_calls": []}
-            message = response.choices[0].message
-            return {
-                "content": message.content or None,
-                "tool_calls": self._normalize_tool_calls(message),
-            }
+            return self._chat_remote(messages, tools, model)
+        # Remote smart tier: offload the everyday smart brain to OmniRoute's
+        # low-cost lane (llm_smart_remote, e.g. auto/cheap). The local 20B
+        # never loads → Metal pressure (and its crash loops) disappear. Any
+        # remote failure falls back to the local model transparently.
+        if (self.frontier_enabled and self._frontier_client is not None
+                and self.model_smart_remote and model == self.model):
+            try:
+                return self._chat_remote(messages, tools,
+                                         self.model_smart_remote)
+            except Exception as exc:  # noqa: BLE001 - offline fallback
+                log.warning("remote smart tier failed (%s) — local fallback "
+                            "to %s", exc, self.model)
 
         kwargs = {"model": model, "messages": messages}
         kwargs.update(self._extra)
@@ -335,14 +361,31 @@ class LLM:
         """
         import json as _json
         model = model or self.model
+        rf = {"type": "json_schema",
+              "json_schema": {"name": name, "schema": schema}}
+        # When the smart tier is offloaded, constrained calls follow it to
+        # the gateway (K3 via OmniRoute handles json_schema fine — verified
+        # 2026-09-28) rather than waking the local 20B.
+        if (self.frontier_enabled and self._frontier_client is not None
+                and self.model_smart_remote and model == self.model):
+            try:
+                out = self._chat_remote(messages, None,
+                                        self.model_smart_remote,
+                                        response_format=rf)
+            except Exception as exc:  # noqa: BLE001
+                log.info("remote structured chat failed: %s", exc)
+                return None
+            content = out.get("content") or ""
+            try:
+                parsed = _json.loads(content)
+            except ValueError:
+                return None
+            return parsed if isinstance(parsed, dict) else None
         if "11434" not in (self.settings.llm_base_url or ""):
             return None  # constrained decoding is an Ollama feature here
         kwargs: dict[str, Any] = {
             "model": model, "messages": messages,
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": name, "schema": schema},
-            },
+            "response_format": rf,
         }
         kwargs.update(self._extra)
         num_ctx = (self.settings.llm_num_ctx_fast

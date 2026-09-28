@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     llm_frontier_model: str = "kimi-k3"
     llm_frontier_api_key: str = ""
     llm_frontier_reasoning_effort: str = "high"
+    # Remote smart tier via the OmniRoute gateway (e.g. "auto/cheap") —
+    # everyday smart turns run on a low-cost frontier lane instead of the
+    # local 20B; the local model remains the offline fallback.
+    llm_smart_remote: str = ""
 
     # Voice
     tts_voice: str = "en-GB-RyanNeural"

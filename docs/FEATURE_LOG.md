@@ -139,3 +139,12 @@ Dashboards (sign in with your Simon password):
   advertises progressively at startup (was capturing 8 of 27 tools).
 - Fix: `SIMON_MCP_TOOL_ALLOWLIST` extended (scrape, crawl, extract, firecrawl_map, firecrawl_parse,
   credit, apify) — the old list silently filtered out scrape/crawl.
+
+## 2026-09-28 — Remote smart tier via OmniRoute (hardware offload)
+- `LLM_SMART_REMOTE=auto/cheap`: everyday smart-tier turns (tool work, documents, research)
+  run on OmniRoute's low-cost K3 lane instead of the local gpt-oss:20b. The 20B never loads
+  → Metal working-set pressure (the 2026-09-27 crash loops) is gone. Local 20B remains the
+  transparent offline fallback on any gateway failure.
+- Structured final answers follow the offload (json_schema verified on the gateway).
+- Frontier extras (reasoning_effort=high) apply to the frontier model only — the cheap lane
+  stays fast. Tier map: fast=qwen3:8b local · smart=auto/cheap via OmniRoute · assignments/escalations=auto (best).
