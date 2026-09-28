@@ -792,6 +792,14 @@
       body: JSON.stringify(body)
     })
       .then(function (res) {
+        // 401 = the 7-day session cookie expired (or the backend restarted
+        // with a new hash). The honest move is the login page — not the
+        // "unable to reach my own systems" apology, which misdiagnoses an
+        // auth lapse as a backend outage (desktop smoke test, 2026-09-28).
+        if (res.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
         if (!res.ok || !res.body) throw new Error("chat failed");
         var reader = res.body.getReader();
         var decoder = new TextDecoder();

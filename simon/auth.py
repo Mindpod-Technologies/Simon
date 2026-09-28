@@ -22,7 +22,7 @@ import secrets
 import time
 
 _ITERATIONS = 200_000
-_SESSION_TTL = 7 * 24 * 3600  # 7 days
+_SESSION_TTL = 30 * 24 * 3600  # 30 days — personal desktop assistant; weekly re-login is friction, not security
 _LOCKOUT_AFTER = 5
 _LOCKOUT_SECONDS = 60
 
