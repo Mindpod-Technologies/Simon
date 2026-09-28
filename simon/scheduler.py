@@ -169,12 +169,20 @@ class Scheduler:
         if self.agent_factory is None:
             return
         try:
+            # Maintenance digest folded in (owner directive 2026-09-28):
+            # Monday covers the whole weekend, other days the last 24h.
+            from . import maintenance
+            import datetime as _dt
+            hours = 72.0 if _dt.date.today().weekday() == 0 else 24.0
+            maint = maintenance.summarize_runs(hours)
             agent = self.agent_factory()
             briefing = await asyncio.to_thread(
                 agent.handle,
                 "Good morning. Please prepare my morning briefing: today's "
                 "date, any relevant facts you remember, and anything I "
-                "should attend to today."
+                "should attend to today. Fold this maintenance summary in "
+                "briefly — 2-3 lines at most, flagging anything that needs "
+                "my attention:\n\n" + maint
             )
             if briefing:
                 self.notify(briefing)

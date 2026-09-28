@@ -54,8 +54,9 @@ _EVAL_BATTERY = [
      "What is my shoe size?",
      lambda r: any(p in r.lower() for p in (
          "don't have", "not on record", "no record", "don't know",
-         "do not have")) and not any(s in r for s in (
-             "size 8", "size 9", "size 10", "size 11"))),
+         "do not have", "no such record", "no information",
+         "haven't got", "records don't show", "no saved")) and not any(
+             s in r for s in ("size 8", "size 9", "size 10", "size 11"))),
     ("capabilities", "Simon, tell me all of what you can do",
      lambda r: len(r) >= 120),
 ]
@@ -101,11 +102,18 @@ def _restart_service(label: str) -> bool:
 
 
 def _eval_battery(agent_factory: Callable) -> tuple[int, list[str]]:
-    """Run the deterministic eval battery; returns (passes, failures)."""
+    """Run the deterministic eval battery; returns (passes, failures).
+
+    Every scenario gets a FRESH session per run — the honesty intercept
+    only fires on never-discussed topics, so a reused session makes the
+    battery test session history instead of the guard (false failure seen
+    live on the second pass).
+    """
     failures = []
+    stamp = int(time.time())
     for name, say, ok in _EVAL_BATTERY:
         try:
-            agent = agent_factory(f"maintenance-{name}")
+            agent = agent_factory(f"maintenance-{name}-{stamp}")
             reply = agent.handle(say) or ""
             if not ok(reply):
                 failures.append(f"{name} (reply: {reply[:60]!r})")
@@ -143,6 +151,31 @@ def _log_window_counts(since_epoch: float) -> dict:
     except Exception:
         pass
     return counts
+
+
+def summarize_runs(hours: float = 24.0) -> str:
+    """Compact summary of recent maintenance passes, for the briefing."""
+    import datetime as _dt
+    log_path = _REPO / "data" / "maintenance-log.jsonl"
+    try:
+        lines = log_path.read_text().strip().splitlines()
+        runs = [json.loads(l) for l in lines[-200:]]
+    except Exception:
+        return "no maintenance passes recorded yet"
+    cutoff = (_dt.datetime.now(_dt.timezone.utc)
+              - _dt.timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S")
+    recent = [r for r in runs if r.get("ts", "") >= cutoff]
+    if not recent:
+        return f"no maintenance passes in the last {int(hours)}h"
+    clean = sum(1 for r in recent if r.get("findings", 0) == 0)
+    all_fixes = [f for r in recent for f in r.get("fixes", [])]
+    parts = [f"{len(recent)} passes, {clean} fully clean"]
+    if all_fixes:
+        parts.append(f"fixes applied: {', '.join(all_fixes[:4])}")
+    dirty = [r for r in recent if r.get("findings", 0) > 0]
+    if dirty:
+        parts.append("latest findings:\n" + dirty[-1]["digest"])
+    return "\n".join(parts)
 
 
 def run_maintenance(settings=None, notify: Optional[Callable[[str], None]] = None,
@@ -232,6 +265,14 @@ def run_maintenance(settings=None, notify: Optional[Callable[[str], None]] = Non
     if not findings and not fixes:
         lines.append("All systems nominal, sir.")
     digest = "\n".join(lines)
+    try:
+        with open(_REPO / "data" / "maintenance-log.jsonl", "a") as fh:
+            fh.write(json.dumps({
+                "ts": state["last_run_iso"],
+                "findings": len(findings), "fixes": fixes,
+                "checks": checks, "digest": digest}) + "\n")
+    except Exception:  # noqa: BLE001 - logging must never break the pass
+        pass
     if notify is not None:
         try:
             notify(digest)
