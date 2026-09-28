@@ -38,6 +38,14 @@
   var TEXT_EXTS = [".md", ".txt", ".csv", ".json", ".log", ".py",
                    ".yaml", ".yml", ".html", ".sh"];
 
+  function scrollChatToBottom() {
+    // #center is the actual scroll container (overflow-y: auto);
+    // transcript.scrollTop was a silent no-op and new replies landed
+    // below the fold (desktop smoke test, 2026-09-28).
+    var scroller = document.getElementById("center");
+    if (scroller) scroller.scrollTop = scroller.scrollHeight;
+  }
+
   function setStatus(text) { statusEl.textContent = text; }
 
   function orbThinking(on) {
@@ -172,7 +180,7 @@
     div.appendChild(body);
     setMsgText(div, text);
     transcript.appendChild(div);
-    transcript.scrollTop = transcript.scrollHeight;
+    scrollChatToBottom();
     return div;
   }
 
@@ -187,7 +195,7 @@
     var body = div.children[1];
     body.textContent = "";
     appendRichText(body, text);
-    transcript.scrollTop = transcript.scrollHeight;
+    scrollChatToBottom();
   }
 
   function systemMsg(text) {
@@ -813,7 +821,7 @@
             }
             full += data;
             setMsgText(replyDiv, full);
-            transcript.scrollTop = transcript.scrollHeight;
+            scrollChatToBottom();
           } else if (evName === "done") {
             full = data;
             if (replyDiv) renderMsgRich(replyDiv, full);
