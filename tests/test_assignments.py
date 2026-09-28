@@ -180,10 +180,12 @@ def test_owner_cancellation_closes_assignment(db, monkeypatch):
 
 
 def test_cancellation_words_without_assignment_pass_through(db, monkeypatch):
-    """Negative control: 'never mind' with nothing open is a normal turn."""
+    """'never mind' with nothing open: no assignment is touched, and the
+    approval layer answers honestly (it double-matches as a reject word) —
+    the model is never consulted."""
     registry = FakeRegistry()
     agent = _agent(GreetingLLM(), registry, monkeypatch, CHAT_PLAN,
                    session="plain-test")
     reply = agent.handle("never mind")
-    assert reply.startswith("Hello Jae")
+    assert "nothing awaits" in reply.lower()
     assert assignments.active("plain-test") is None

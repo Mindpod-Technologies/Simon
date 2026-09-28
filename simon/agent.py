@@ -105,6 +105,7 @@ _CLAIM_RE = re.compile(
     r"queued|recorded|saved|sent|delivered|set up|set|established|arranged|"
     r"added|configured|enabled|booked|prepared|filed|stored|updated|called|"
     r"invoked|executed|completed|run|reviewed|read|visited|checked|"
+    r"initiated|launched|kicked off|"
     r"inspected|examined|fetched|analysed|analyzed|retrieved|looked at)\b",
     re.IGNORECASE)
 
@@ -500,6 +501,24 @@ class Agent:
                         "turn", interface=self.interface,
                         session_id=self.session_id, model="(none)",
                         route_reason="approval disambiguation", latency_ms=0,
+                        tools=[], tool_errors=0, escalated=False,
+                        reply_len=len(reply), user_len=len(user_text))
+                    return reply
+                else:
+                    # A decision word with NOTHING pending: the ask expired
+                    # or was already settled. Say so — silently falling
+                    # through lets the model confabulate a confirmation
+                    # (observed 2026-09-27: "Approved" → "I've initiated
+                    # job #26" while no tool ran).
+                    reply = ("Nothing awaits my sign-off, sir — the earlier "
+                             "request has expired or was already settled. "
+                             "Tell me again what you'd like done and I shall "
+                             "re-ask properly.")
+                    memory.add_message(self.session_id, "assistant", reply)
+                    obs.record_event(
+                        "turn", interface=self.interface,
+                        session_id=self.session_id, model="(none)",
+                        route_reason="approval none pending", latency_ms=0,
                         tools=[], tool_errors=0, escalated=False,
                         reply_len=len(reply), user_len=len(user_text))
                     return reply

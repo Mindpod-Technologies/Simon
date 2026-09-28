@@ -129,6 +129,53 @@ def test_decode_args_roundtrip(db):
     assert approvals.decode_args(approvals.pending("s1")) == {"to": "x@y.z"}
 
 
+def test_pending_survives_past_one_hour(db):
+    """Regression 2026-09-27: a delegate_dev ask parked by a background job
+    expired after 60m; the owner's 'Approved' 4h later fell through to a
+    confabulated reply. Async asks must live for hours, not minutes."""
+    from simon import memory
+    approvals.request("s1", "delegate_dev", {"task": "build"}, "build it")
+    conn = memory._connect()
+    conn.execute("UPDATE approvals SET created_at = datetime('now', '-3 hours')")
+    conn.commit()
+    conn.close()
+    assert approvals.pending("s1") is not None   # 3h old — still live
+    assert approvals.list_pending()
+
+
+def test_pending_expires_after_ttl(db, monkeypatch):
+    monkeypatch.setenv("SIMON_APPROVAL_TTL_MINUTES", "5")
+    # settings cache may hold a previous instance — force a fresh one
+    from simon import config
+    monkeypatch.setattr(config, "_SETTINGS", None, raising=False)
+    from simon.config import Settings
+    monkeypatch.setattr("simon.config.get_settings",
+                        lambda: Settings(simon_approval_ttl_minutes=5))
+    from simon import memory
+    approvals.request("s1", "delegate_dev", {"task": "build"}, "build it")
+    conn = memory._connect()
+    conn.execute("UPDATE approvals SET created_at = datetime('now', '-10 minutes')")
+    conn.commit()
+    conn.close()
+    assert approvals.pending("s1") is None
+
+
+def test_approve_with_nothing_pending_is_honest(db):
+    """'approve' with zero pendings must say so — never fall through to a
+    model that confabulates a confirmation (2026-09-27: 'I've initiated
+    job #26' with zero tools run)."""
+    class QuietLLM:
+        def chat(self, messages, tools=None):
+            return {"content": "I've initiated the thing you asked about!",
+                    "tool_calls": []}
+
+    agent = Agent(Settings(), registry=MailRegistry(),
+                  session_id="nobody-pending", llm=QuietLLM())
+    reply = agent.handle("approve")
+    assert "nothing awaits" in reply.lower()
+    assert "initiated" not in reply.lower()
+
+
 # ---------------------------------------------------------------------------
 # Agent integration
 # ---------------------------------------------------------------------------

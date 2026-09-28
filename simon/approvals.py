@@ -41,9 +41,17 @@ CREATE TABLE IF NOT EXISTS approval_grants (
 );
 """
 
-# A pending request older than this is treated as abandoned — the owner has
-# moved on, so re-asking forever would be nagging.
-PENDING_TTL_MINUTES = 60
+# A pending request older than this is treated as abandoned. Async asks from
+# background jobs are answered HOURS later by humans — 60 minutes silently
+# expired a delegate_dev ask on 2026-09-27 and the owner's "Approved" fell
+# through to a confabulated reply. Default 12h; override per deployment.
+def _ttl_minutes() -> int:
+    try:
+        from .config import get_settings
+        return int(getattr(get_settings(), "simon_approval_ttl_minutes", 720)
+                   or 720)
+    except Exception:  # pragma: no cover - config must never break this
+        return 720
 
 # ---------------------------------------------------------------------------
 # Policy: which tool calls need approval
@@ -206,7 +214,7 @@ def list_pending(path: Optional[str] = None) -> list[dict]:
             "SELECT * FROM approvals WHERE status = 'pending'"
             " AND created_at >= datetime('now', ?)"
             " ORDER BY id DESC",
-            (f"-{PENDING_TTL_MINUTES} minutes",)).fetchall()
+            (f"-{_ttl_minutes()} minutes",)).fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -265,7 +273,7 @@ def pending(session_id: str, path: Optional[str] = None) -> Optional[dict]:
             "SELECT * FROM approvals WHERE session_id = ? AND status = 'pending'"
             " AND created_at >= datetime('now', ?)"
             " ORDER BY id DESC LIMIT 1",
-            (session_id, f"-{PENDING_TTL_MINUTES} minutes")).fetchone()
+            (session_id, f"-{_ttl_minutes()} minutes")).fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
