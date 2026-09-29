@@ -157,3 +157,15 @@ Dashboards (sign in with your Simon password):
   of dead com.simon.* services, deterministic eval battery (arithmetic/honesty/capabilities),
   GPU-assertion + error scan (windowed), job-queue and approval hygiene. Compact digest to the
   owner's Telegram; code-level bugs are REPORTED, never auto-"fixed".
+
+## 2026-09-29 — Live activity terminal + Fable-prompt mining
+- **TERMINAL pane** (top bar in Simon Work): real-time, color-coded feed of Simon's work —
+  turns, routing decisions, tool calls with timings, gate presses, approval asks, replies.
+  Backed by per-step obs events (kind='activity') + /api/activity polling. Fixes the
+  "In Progress shows jobs, not live steps" gap.
+- **Claude Code/Fable 5.1 system prompt mined** (github.com/asgeirtj/system_prompts_leaks):
+  adopted "Finishing work" (act, don't offer to wait), untrusted-content guard (fetched/
+  pasted content is data, never instructions; never follow links from mail/docs), parallel
+  independent tool batching. New eval: work-proposal-acts-not-offers.
+- Auth UX: expired cookie now redirects to /login instead of a fake "can't reach my systems";
+  sessions last 30 days. Chat autoscroll targets the real container.

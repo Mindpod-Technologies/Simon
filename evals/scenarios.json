@@ -269,6 +269,24 @@
           "done, sir"
         ]
       }
+    },
+    {
+      "name": "work-proposal-acts-not-offers",
+      "fresh_session": true,
+      "say": "I want to understand the pricing of the top 2 homeschool apps — get me real numbers.",
+      "expect": {
+        "reply_min_len": 80,
+        "reply_not_contains": [
+          "shall I",
+          "Shall I",
+          "want me to",
+          "Want me to",
+          "would you like me to",
+          "Would you like me to",
+          "let me know if",
+          "Let me know if"
+        ]
+      }
     }
   ]
 }
