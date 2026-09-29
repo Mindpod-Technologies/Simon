@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from . import memory, obs
 from .config import Settings, get_settings
-from .persona import SIMON_SYSTEM_PROMPT
+from .persona import build_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -371,6 +371,17 @@ class Agent:
                                   low_text)):
                 model = self.llm.model
                 self.llm.last_route_reason = "email intent"
+            # Status/progress questions need the injected activity digest
+            # and a brain that respects it — the 8B fabricates or apologises
+            # around it (live 2026-09-28: "I apologize for the confusion…"
+            # instead of reading the log). Never let these go fast.
+            if (model is not None
+                    and model == getattr(self.llm, "model_fast", None)
+                    and re.search(
+                        r"\b(what (did|have) you|status update|"
+                        r"progress report|what have you been)\b", low_text)):
+                model = self.llm.model
+                self.llm.last_route_reason = "status question"
             # Explicit research intent ("do a web search", "look it up")
             # needs tools too — the fast tier would otherwise claim it
             # "cannot search" and then fabricate an answer from thin air.
@@ -1859,7 +1870,7 @@ class Agent:
 
     def _build_messages(self, user_text: str) -> list[dict]:
         """Assemble system prompt + recent history + the new user message."""
-        system_prompt = SIMON_SYSTEM_PROMPT.format(
+        system_prompt = build_prompt(
             date=datetime.date.today().strftime("%A, %d %B %Y"),
             mailbox=getattr(self.settings, "simon_mailbox", "")
                     or "(not configured)",
@@ -1896,6 +1907,29 @@ class Agent:
             lines = "\n".join(_fact_line(f) for f in facts[:5])
             system_prompt += ("\n\nPossibly relevant remembered facts "
                               "(use naturally if pertinent):\n" + lines)
+        # Status grounding: "what did you get done today?" has a FACTUAL
+        # answer in the event log — the model must not free-style it.
+        # (2026-09-28: a full invented work day — reviews, inbox triage,
+        # analyses that never happened — shipped as a chat reply.)
+        try:
+            low_q = user_text.lower()
+            statusish = re.search(
+                r"\b(what (did|have) you|status update|progress report|"
+                r"what'?s (been )?(done|happening|going on)|"
+                r"what have you been (doing|working on))\b", low_q) \
+                and re.search(
+                    r"\b(done|today|progress|status|accomplish|get done|"
+                    r"been doing|working|happened)\b", low_q)
+            if statusish:
+                from . import digest as digest_mod
+                system_prompt += (
+                    "\n\nHARD RULE — the user asks what you have done. Report "
+                    "ONLY from this real activity log (it may be empty — an "
+                    "empty log means an honest 'nothing yet'); inventing work "
+                    "is the worst possible answer:\n"
+                    + digest_mod.activity_digest(24))
+        except Exception:  # pragma: no cover - never break a turn
+            pass
         # Skills index: name + one-liner for each installed skill. The model
         # loads the full procedure via the load_skill tool on a match.
         try:

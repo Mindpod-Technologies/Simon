@@ -231,6 +231,9 @@
       speechPlaying = false;
       orbSpeaking(false);
       setStatus("ONLINE");
+      // Voice mode: Simon finished speaking → the mic reopens and the
+      // conversation continues hands-free.
+      if (voiceMode) startVoiceListen();
       return;
     }
     speechPlaying = true;
@@ -248,8 +251,10 @@
       .then(function (blob) {
         var url = URL.createObjectURL(blob);
         var audio = new Audio(url);
+        currentAudio = audio;
         audio.onended = audio.onerror = function () {
           URL.revokeObjectURL(url);
+          currentAudio = null;
           drainSpeech();
         };
         audio.play().catch(function () {
@@ -259,6 +264,117 @@
       .catch(function () {
         drainSpeech();
       });
+  }
+
+  /* ---- voice mode: continuous hands-free conversation ----
+     Toggle on: listen → silence-detect (VAD) → transcribe → send → speak →
+     listen again. The mic button barges in mid-speech. Replies in voice
+     mode are spoken, then the mic reopens — a real conversation loop. */
+  var voiceMode = false;
+  var vadTimer = null;
+  var vadCtx = null;
+  var currentAudio = null;
+  var voiceBtn = document.getElementById("voice-mode");
+
+  function stopVad() {
+    if (vadTimer) { clearInterval(vadTimer); vadTimer = null; }
+    if (vadCtx) { vadCtx.close().catch(function () {}); vadCtx = null; }
+  }
+
+  function startVad(stream) {
+    vadCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var analyser = vadCtx.createAnalyser();
+    analyser.fftSize = 512;
+    vadCtx.createMediaStreamSource(stream).connect(analyser);
+    var data = new Uint8Array(analyser.frequencyBinCount);
+    var speechSeen = false;
+    var lastSpeech = 0;
+    vadTimer = setInterval(function () {
+      analyser.getByteTimeDomainData(data);
+      var sum = 0;
+      for (var i = 0; i < data.length; i++) {
+        var v = (data[i] - 128) / 128;
+        sum += v * v;
+      }
+      var rms = Math.sqrt(sum / data.length);
+      var now = performance.now();
+      if (rms > 0.02) { speechSeen = true; lastSpeech = now; }
+      // 1.4s of quiet after speech = end of utterance; 45s of nothing at
+      // all = nobody's talking, keep waiting but stay alive.
+      if (speechSeen && now - lastSpeech > 1400) {
+        stopVad();
+        stopRecording();
+      }
+    }, 100);
+  }
+
+  function setVoiceMode(on) {
+    voiceMode = on;
+    if (voiceBtn) voiceBtn.classList.toggle("recording", on);
+    if (!on) {
+      stopVad();
+      stopRecording();
+      speechQueue = [];
+      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+      speechPlaying = false;
+      orbSpeaking(false);
+      setStatus("ONLINE");
+      return;
+    }
+    startVoiceListen();
+  }
+
+  function startVoiceListen() {
+    if (!voiceMode) return;
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      setVoiceMode(false);
+      setStatus("MIC UNAVAILABLE");
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (stream) {
+        chunks = [];
+        recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = function (e) {
+          if (e.data.size) chunks.push(e.data);
+        };
+        recorder.onstop = function () {
+          micBtn.classList.remove("recording");
+          stream.getTracks().forEach(function (t) { t.stop(); });
+          var blob = new Blob(chunks,
+                              { type: recorder.mimeType || "audio/webm" });
+          if (blob.size < 2000) {  // noise trigger, not speech — keep listening
+            if (voiceMode) startVoiceListen();
+            return;
+          }
+          setStatus("TRANSCRIBING");
+          var fd = new FormData();
+          fd.append("file", blob, "voice.webm");
+          fetch("/api/stt", { method: "POST", body: fd })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+              var text = (data.text || "").trim();
+              if (text) {
+                input.value = "";
+                doSend(text);  // reply → spoken → drainSpeech reopens the mic
+              } else if (voiceMode) {
+                startVoiceListen();
+              }
+            })
+            .catch(function () { if (voiceMode) startVoiceListen(); });
+        };
+        recorder.start(250);
+        micBtn.classList.add("recording");
+        setStatus("LISTENING");
+        startVad(stream);
+      })
+      .catch(function () { setStatus("MIC DENIED"); setVoiceMode(false); });
+  }
+
+  if (voiceBtn) {
+    voiceBtn.addEventListener("click", function () {
+      setVoiceMode(!voiceMode);
+    });
   }
 
   /* ---- files panel ---- */
@@ -891,6 +1007,12 @@
   }
 
   micBtn.addEventListener("click", function () {
+    // Voice mode: the mic becomes a barge-in — cut Simon off, keep listening.
+    if (voiceMode) {
+      speechQueue = [];
+      if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+      return;
+    }
     if (recorder && recorder.state === "recording") {
       stopRecording();
       return;

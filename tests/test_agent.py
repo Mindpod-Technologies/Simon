@@ -77,7 +77,6 @@ def test_agent_persists_history(agent, tmp_path, monkeypatch):
 
 def test_agent_system_prompt_injected(agent):
     from simon import memory
-    from simon.persona import SIMON_SYSTEM_PROMPT
 
     memory.init_db()
 
@@ -86,7 +85,8 @@ def test_agent_system_prompt_injected(agent):
     assert "{date}" not in messages[0]["content"]
     assert "Simon" in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": "hello"}
-    assert SIMON_SYSTEM_PROMPT.split("{date}")[0][:20] in messages[0]["content"]
+    # Soul + operational contract both present (SOUL.md era, 2026-09-28)
+    assert "OPERATIONAL CONTRACT" in messages[0]["content"]
 
 
 class PseudoLLM:

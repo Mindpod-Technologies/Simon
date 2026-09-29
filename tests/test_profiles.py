@@ -71,7 +71,8 @@ def test_persona_prompt_names_family_member(db):
     prompt = llm.prompts[0]
     assert "Alicia" in prompt
     assert "not the owner" in prompt
-    assert "sir' is reserved" in prompt
+    # SOUL.md wording (2026-09-28): "'sir' is for the owner alone"
+    assert "owner alone" in prompt
 
 
 def test_owner_session_prompt_unchanged(db):

@@ -287,68 +287,10 @@ class Scheduler:
             logger.exception("Mail check failed")
 
     def _activity_digest(self, hours: float = 1.0) -> str:
-        """Deterministic digest of REAL recent activity from the event log.
-
-        The hourly status must be grounded in facts, not the model's
-        imagination: this digest is the ONLY source the status prompt
-        allows. Covers conversations, tool calls, and job state changes in
-        the window; eval sessions are excluded.
-        """
-        import json as _json
-
-        cutoff = (datetime.datetime.now(datetime.timezone.utc)
-                  - datetime.timedelta(hours=hours)).isoformat()
-        try:
-            events = [e for e in obs.recent_events(limit=300, kind="turn")
-                      if e.get("ts", "") >= cutoff
-                      and not (e.get("session_id") or "").startswith("eval")]
-        except Exception:  # noqa: BLE001 - obs must never break scheduling
-            events = []
-        lines = ["REAL activity log for the last hour "
-                 "(from Simon's event table — report ONLY from this):"]
-        if not events:
-            lines.append("- No conversations and no tool calls this hour.")
-        else:
-            by_interface: dict[str, int] = {}
-            tools: dict[str, int] = {}
-            for e in events:
-                iface = e.get("interface") or "?"
-                by_interface[iface] = by_interface.get(iface, 0) + 1
-                try:
-                    detail = _json.loads(e.get("detail") or "{}")
-                    # record_event wraps the payload: {"detail": "<json>"}
-                    inner = detail.get("detail", detail)
-                    if isinstance(inner, str):
-                        inner = _json.loads(inner)
-                    for t in inner.get("tools", []):
-                        tools[t] = tools.get(t, 0) + 1
-                except Exception:  # noqa: BLE001
-                    pass
-            lines.append("- Conversations: " + ", ".join(
-                f"{k} ×{v}" for k, v in sorted(by_interface.items())))
-            lines.append("- Tools used: " + (
-                ", ".join(f"{k} ×{v}" for k, v in sorted(tools.items()))
-                if tools else "none"))
-        try:
-            conn = memory._connect()
-            try:
-                rows = conn.execute(
-                    "SELECT id, status, description, finished_at FROM jobs "
-                    "WHERE created_at >= ? OR started_at >= ? OR "
-                    "finished_at >= ?",
-                    (cutoff[:19].replace("T", " "),
-                     cutoff[:19].replace("T", " "),
-                     cutoff[:19].replace("T", " "))).fetchall()
-            finally:
-                conn.close()
-        except Exception:  # noqa: BLE001
-            rows = []
-        if rows:
-            lines.append("- Background jobs: " + "; ".join(
-                f"#{r[0]} {r[1]} — {r[2][:50]}" for r in rows[:5]))
-        else:
-            lines.append("- No background jobs ran.")
-        return "\n".join(lines)
+        """Delegates to the shared digest module (simon/digest.py) — the
+        same ground truth the agent's status-question grounding uses."""
+        from . import digest
+        return digest.activity_digest(hours)
 
     async def _hourly_status(self) -> None:
         """Generate and deliver the hourly status update (owner directive).

@@ -305,6 +305,14 @@
     color: var(--ink-dim); transition: all 0.2s;
   }
   .dock-btn:hover { color: var(--accent); background: var(--accent-soft); }
+  .dock-btn.recording {
+    color: #fff; background: var(--accent);
+    animation: recPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes recPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(63,198,201,0.5); }
+    50% { box-shadow: 0 0 0 6px rgba(63,198,201,0); }
+  }
   #send {
     background: linear-gradient(135deg, #16494c, #1d5f63);
     color: var(--ink); border: none; border-radius: 12px;
@@ -482,6 +490,7 @@
         <div id="dock-actions">
           <button class="dock-btn" id="attach" title="Upload a document for Simon">📎</button>
           <button class="dock-btn" id="mic" title="Record a voice message">🎤</button>
+          <button class="dock-btn" id="voice-mode" title="Voice mode — hands-free conversation">🗣️</button>
           <button id="send">Send</button>
         </div>
       </div>
