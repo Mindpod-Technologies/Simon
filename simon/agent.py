@@ -44,7 +44,11 @@ _DODGE_RE = re.compile(
     r"how may i be of|ready to (help|assist|dive|get started)|"
     r"how can i assist|let me know what you['’]?d like|"
     r"would you like me to|"
-    r"what you['’]?d like to (tackle|work on|do next))\b",
+    r"what you['’]?d like to (tackle|work on|do next)|"
+    r"i apologize for (the|any) confusion|"
+    r"you are (absolutely )?correct[,.!]|"
+    r"you'?re (absolutely )?correct[,.!]|"
+    r"let me correct that)\b",
     re.IGNORECASE)
 
 # Tool-schema pruning: with MCP servers connected, the full schema list is
@@ -463,6 +467,38 @@ class Agent:
             self.llm.last_route_reason = "multi-action → frontier"
             logger.info("multi-action assignment → frontier tier (%s)",
                         model)
+
+        # Proceed intent ("go forth", "proceed", "carry on", "make it so")
+        # right after Simon proposed a plan or while an assignment is open
+        # is a WORK TRIGGER, not chit-chat — the turn must produce receipts
+        # (start_job, real tool work) or honestly say what blocks it. Live
+        # 2026-09-29: "go forth Simon and proceed" got a policy-parroting
+        # meta-apology and nothing moved.
+        if not tool_mandatory and re.search(
+                r"\b(go forth|proceed|carry on|get to work|get started|"
+                r"make it so|let'?s do (it|this)|continue with|"
+                r"move forward|press on)\b", low):
+            try:
+                from . import assignments
+                has_assignment = assignments.active(self.session_id)
+            except Exception:  # pragma: no cover - never break a turn
+                has_assignment = None
+            last_assistant = next(
+                (m for m in reversed(messages[1:-1])
+                 if m.get("role") == "assistant"), None)
+            proposed = bool(has_assignment) or bool(
+                last_assistant
+                and len(str(last_assistant.get("content") or "")) > 400)
+            if proposed:
+                tool_mandatory = True
+                if getattr(self.llm, "frontier_enabled", False):
+                    model = self.llm.model_frontier
+                elif model is None or model == getattr(
+                        self.llm, "model_fast", None):
+                    model = self.llm.model
+                self.llm.last_route_reason = "proceed → work trigger"
+                logger.info("proceed intent with open work — receipts "
+                            "mandatory")
 
         # Approval gate ("autonomous, not unsupervised"): a previous turn may
         # have parked a sensitive action awaiting the owner's decision.
@@ -1348,9 +1384,13 @@ class Agent:
                         candidate = (result.get("content") or "").strip()
                         if candidate:
                             reply = candidate
-                        if candidate and self._looks_dishonest(candidate):
+                        if candidate and (self._looks_dishonest(candidate)
+                                          or _DODGE_RE.search(candidate)):
                             # Still narrating instead of acting — nudge again,
-                            # more bluntly.
+                            # more bluntly. A meta-apology ("you are correct
+                            # that I should not…") is also a non-answer:
+                            # policy-parroting instead of doing the work
+                            # (live 2026-09-29, "go forth and proceed").
                             nudge_messages.append(
                                 {"role": "assistant", "content": candidate})
                             nudge_messages.append({"role": "user", "content": (

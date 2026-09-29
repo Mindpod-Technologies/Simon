@@ -83,9 +83,9 @@ def db(tmp_path, monkeypatch):
     return tmp_path
 
 
-def _agent(llm, registry, monkeypatch, plan):
+def _agent(llm, registry, monkeypatch, plan, session="gate-test"):
     monkeypatch.setattr("simon.decisions.plan_turn", lambda text: plan)
-    return Agent(Settings(), registry=registry, session_id="gate-test",
+    return Agent(Settings(), registry=registry, session_id=session,
                  llm=llm)
 
 
@@ -233,6 +233,52 @@ def test_single_verb_chat_not_gated(db, monkeypatch):
     registry = FakeRegistry()
     agent = _agent(GreetingLLM(), registry, monkeypatch, plan=None)
     reply = agent.handle("Send me a joke")
+    assert reply.startswith("Hello Jae")
+
+
+class MetaApologyLLM(GreetingLLM):
+    """Claims to proceed, then answers the nudge with policy-parroting —
+    the exact 2026-09-29 'go forth and proceed' failure."""
+
+    def chat(self, messages, tools=None, model=None):
+        self.calls += 1
+        if self.calls == 1:
+            return {"content": "Understood — proceeding with the build now.",
+                    "tool_calls": []}
+        return {"content": "I apologize for the confusion. You are correct "
+                           "that I should not make claims without calling "
+                           "the appropriate tool. Let me correct that.",
+                "tool_calls": []}
+
+
+def test_meta_apology_is_not_accepted_as_correction(db, monkeypatch):
+    """The claimed-action nudge must not accept 'you are correct, let me
+    correct that' as a correction — it's policy parroting, not work."""
+    registry = FakeRegistry()
+    agent = _agent(MetaApologyLLM(), registry, monkeypatch, plan=None)
+    reply = agent.handle("go forth and proceed")
+    assert "You are correct" not in reply
+
+
+def test_proceed_with_open_assignment_requires_receipts(db, monkeypatch):
+    """'go forth and proceed' with an open assignment is a work trigger —
+    a bare acknowledgment with zero tool calls may not ship."""
+    from simon import assignments
+    assignments.open_assignment("proceed-test", "build the Learning Compass")
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, plan=None,
+                   session="proceed-test")
+    reply = agent.handle("Sounds good! go forth Simon and proceed")
+    assert "Hello Jae" not in reply
+    assert "nothing has been done" in reply.lower()
+
+
+def test_proceed_without_open_work_is_plain_chat(db, monkeypatch):
+    """No assignment, no substantive proposal → 'proceed' stays chat."""
+    registry = FakeRegistry()
+    agent = _agent(GreetingLLM(), registry, monkeypatch, plan=None,
+                   session="proceed-none")
+    reply = agent.handle("sounds good, proceed")
     assert reply.startswith("Hello Jae")
 
 
