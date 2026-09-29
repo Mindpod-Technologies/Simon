@@ -146,3 +146,43 @@ def test_notify_only_reaches_owner(monkeypatch):
                  simon_identity_map="telegram:111=owner")
     telegram_bot.make_notify(s)("private operational notice")
     assert [cid for cid, _ in FakeBot.sent] == [111]
+
+
+# ---------------------------------------------------------------------------
+# /terminal command
+# ---------------------------------------------------------------------------
+
+def test_terminal_lines_collect_session_and_own_jobs(tmp_path, monkeypatch):
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    from simon import jobs, memory, obs
+    memory.init_db()
+    from simon.interfaces.telegram_bot import build_terminal_lines
+
+    obs.activity("tg-1", "▸ research the thing", stage="user")
+    obs.activity("tg-1", "✓ web_search (2.1s)", stage="tool-ok")
+    obs.activity("tg-2", "▸ someone else's turn", stage="user")  # other session
+    jid = jobs.create_job("their job", origin_interface="telegram",
+                          origin_session="tg-1")
+    jobs.next_pending()  # running
+    obs.activity(f"job-{jid}", "→ web_search(query=x)", stage="tool")
+    other = jobs.create_job("not theirs", origin_interface="web",
+                            origin_session="owner")
+    jobs.next_pending()
+    obs.activity(f"job-{other}", "→ secret work", stage="tool")
+
+    lines = build_terminal_lines("tg-1")
+    assert "▸ research the thing" in lines
+    assert "✓ web_search (2.1s)" in lines
+    assert "→ web_search(query=x)" in lines        # their job's steps
+    assert "→ secret work" not in lines            # not their job
+    assert not any("someone else's" in l for l in lines)
+
+
+def test_terminal_lines_empty_when_no_activity(tmp_path, monkeypatch):
+    monkeypatch.setattr("simon.memory.DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    from simon import memory
+    memory.init_db()
+    from simon.interfaces.telegram_bot import build_terminal_lines
+    assert build_terminal_lines("ghost-session") == []

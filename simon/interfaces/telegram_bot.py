@@ -211,6 +211,29 @@ def _mark_onboarding(update: "Update", settings) -> None:
         log.exception("onboarding mark failed")
 
 
+def build_terminal_lines(session: str, limit: int = 15) -> list[str]:
+    """Recent activity lines for a session plus its running/queued jobs —
+    the /terminal snapshot. Data from the obs activity stream."""
+    from simon import jobs as jobs_mod, obs as obs_mod
+
+    ids = {session}
+    try:
+        for j in jobs_mod.list_jobs(limit=20):
+            if j.get("origin_session") == session and j["status"] in (
+                    "running", "pending"):
+                ids.add(f"job-{j['id']}")
+    except Exception:  # noqa: BLE001 - terminal must never fail the command
+        pass
+    events: list[dict] = []
+    for sid in ids:
+        try:
+            events.extend(obs_mod.activity_since(0, session_id=sid))
+        except Exception:  # noqa: BLE001
+            pass
+    events.sort(key=lambda e: e["id"])
+    return [e["line"] for e in events][-limit:]
+
+
 def _build_app(settings) -> Application:
     """Build the PTB Application with all handlers registered."""
     state = _TelegramSimon(settings)
@@ -297,9 +320,73 @@ def _build_app(settings) -> Application:
             return
         await _reply_with_voice(update.message, reply, settings)
 
+    async def on_terminal(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """/terminal — recent activity snapshot; /terminal live — stream for 90s."""
+        if not state.is_allowed(update):
+            log.warning(
+                "Refused /terminal from user %s",
+                update.effective_user.id if update.effective_user else "?",
+            )
+            return
+        chat = update.effective_chat
+        session = settings.canonical_session("telegram", str(chat.id))
+        args = [a.lower() for a in (context.args or [])]
+
+        def _collect(after_id: int) -> list[dict]:
+            from simon import jobs as jobs_mod, obs as obs_mod
+            ids = {session}
+            try:
+                for j in jobs_mod.list_jobs(limit=20):
+                    if j.get("origin_session") == session and \
+                            j["status"] in ("running", "pending"):
+                        ids.add(f"job-{j['id']}")
+            except Exception:  # noqa: BLE001
+                pass
+            out: list[dict] = []
+            for sid in ids:
+                try:
+                    out.extend(obs_mod.activity_since(after_id,
+                                                      session_id=sid))
+                except Exception:  # noqa: BLE001
+                    pass
+            out.sort(key=lambda e: e["id"])
+            return out
+
+        if args and args[0] == "live":
+            await update.message.reply_text(
+                "📟 Live view on for 90 seconds — I'll stream what I'm doing "
+                "as it happens.")
+            prior = await asyncio.to_thread(_collect, 0)
+            last = prior[-1]["id"] if prior else 0
+            loop = asyncio.get_event_loop()
+            deadline = loop.time() + 90
+            sent = 0
+            while loop.time() < deadline and sent < 20:
+                await asyncio.sleep(4)
+                fresh = [e for e in await asyncio.to_thread(_collect, last)
+                         if e["id"] > last]
+                if fresh:
+                    last = fresh[-1]["id"]
+                    text = "\n".join(e["line"] for e in fresh)
+                    await update.message.reply_text("📟\n" + text[:3800])
+                    sent += 1
+            await update.message.reply_text(
+                "📟 Live view off. /terminal live again whenever you like.")
+            return
+
+        lines = await asyncio.to_thread(build_terminal_lines, session)
+        if not lines:
+            await update.message.reply_text(
+                "📟 Nothing on the wire yet — give me a task and run "
+                "/terminal live while I work.")
+            return
+        await update.message.reply_text(
+            "📟 recent activity:\n" + "\n".join(lines)[-3800:])
+
     app = Application.builder().token(settings.telegram_bot_token).build()
     app.add_handler(CommandHandler("start", on_start))
     app.add_handler(CommandHandler("status", on_status))
+    app.add_handler(CommandHandler("terminal", on_terminal))
     app.add_handler(
         MessageHandler(filters.VOICE | filters.AUDIO, on_voice)
     )
