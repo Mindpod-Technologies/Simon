@@ -40,39 +40,83 @@ def idle(monkeypatch):
                         lambda: False)
 
 
-def test_mail_check_prompt_forbids_web_fetches(idle):
-    agent = FakeAgent()
-    sent = []
-    sched = Scheduler(Settings(), agent_factory=lambda: agent,
-                      notify=sent.append)
-    asyncio.run(sched._mail_check())
+def test_mail_check_prompt_forbids_web_fetches(idle, tmp_path, monkeypatch):
+    """The briefing prompt carries ONLY the new message blocks — no mailbox
+    address to confuse for a website, no tools mentioned at all."""
+    from simon import mailwatch, memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    memory.init_db()
+    mailwatch.init_db()
+    inbox = ("1. Hello [UNREAD]\n   from: A <a@b.c>\n   date: x\n"
+             "   hi there\n   id: msg-xyz")
+    import simon.tools.graph_mail as gm
+    old = gm.read_recent_emails_graph
+    gm.read_recent_emails_graph = lambda s, count=10: inbox
+    try:
+        agent = FakeAgent()
+        sent = []
+        sched = Scheduler(Settings(), agent_factory=lambda: agent,
+                          notify=sent.append)
+        asyncio.run(sched._mail_check())
+    finally:
+        gm.read_recent_emails_graph = old
     assert len(agent.prompts) == 1
     prompt = agent.prompts[0]
-    assert "read_recent_emails" in prompt
-    assert "ONLY" in prompt
-    assert "not a website" in prompt          # mailbox ≠ website, spelled out
+    assert "msg-xyz" in prompt
+    assert "simon@mindpodtech" not in prompt   # no mailbox-as-website bait
+    assert "read_recent_emails" not in prompt  # no tool needed for the read
     assert sent == []                          # quiet reply → no interruption
 
 
-def test_mail_check_reports_new_mail(idle):
-    agent = FakeAgent(reply="New invoice from Acme, sir.")
-    sent = []
-    sched = Scheduler(Settings(), agent_factory=lambda: agent,
-                      notify=sent.append)
-    asyncio.run(sched._mail_check())
+def test_mail_check_reports_new_mail(idle, tmp_path, monkeypatch):
+    from simon import mailwatch, memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    memory.init_db()
+    mailwatch.init_db()
+    inbox = ("1. Invoice [UNREAD]\n   from: Acme <billing@acme.com>\n"
+             "   date: x\n   pay me\n   id: msg-acme")
+    import simon.tools.graph_mail as gm
+    old = gm.read_recent_emails_graph
+    gm.read_recent_emails_graph = lambda s, count=10: inbox
+    try:
+        agent = FakeAgent(reply="New invoice from Acme, sir.")
+        sent = []
+        sched = Scheduler(Settings(), agent_factory=lambda: agent,
+                          notify=sent.append)
+        asyncio.run(sched._mail_check())
+    finally:
+        gm.read_recent_emails_graph = old
     assert len(sent) == 1 and "Acme" in sent[0]
 
 
-def test_mail_check_suppresses_fabricated_briefing(idle):
-    """M3 receipts gate: a mail briefing with NO read_recent_emails receipt
-    is fabricated mail — suppressed, never delivered."""
-    agent = FakeAgent(reply="Urgent message from your bank, sir.",
-                      tools=())  # claims mail, never called the tool
-    sent = []
-    sched = Scheduler(Settings(), agent_factory=lambda: agent,
-                      notify=sent.append)
-    asyncio.run(sched._mail_check())
-    assert sent == []
+def test_mail_check_suppresses_fabricated_briefing(idle, tmp_path,
+                                                   monkeypatch):
+    """A briefing that names NONE of the real senders/subjects is inventing
+    mail — replaced by the raw floor (deterministic read era, 2026-09-29)."""
+    from simon import mailwatch, memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH",
+                        str(tmp_path / "simon.db"))
+    memory.init_db()
+    mailwatch.init_db()
+    inbox = ("1. Invoice [UNREAD]\n   from: Acme <billing@acme.com>\n"
+             "   date: x\n   pay me\n   id: msg-acme")
+    import simon.tools.graph_mail as gm
+    old = gm.read_recent_emails_graph
+    gm.read_recent_emails_graph = lambda s, count=10: inbox
+    try:
+        agent = FakeAgent(reply="Urgent message from your bank, sir.",
+                          tools=())  # invents a sender absent from the blocks
+        sent = []
+        sched = Scheduler(Settings(), agent_factory=lambda: agent,
+                          notify=sent.append)
+        asyncio.run(sched._mail_check())
+    finally:
+        gm.read_recent_emails_graph = old
+    assert len(sent) == 1
+    assert "your bank" not in sent[0]   # fabrication replaced
+    assert "Acme" in sent[0]            # by the real sender list
 
 
 class _TaskFabricator:

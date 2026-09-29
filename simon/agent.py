@@ -1007,7 +1007,8 @@ class Agent:
                          "more simply?")
                 self.last_turn_exhausted = True
 
-        reply = reply or "Very good, sir. (No further response was required.)"
+        reply = reply or ("Hmm — I came back empty on that one, sir. "
+                          "Once more, if you would?")
 
         # COMPLETION GATE (Core 2.0): a planner-marked tool-mandatory turn
         # may not deliver an answer with zero receipts. Six prose-regex

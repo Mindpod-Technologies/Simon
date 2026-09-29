@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import re
 from typing import Any, Callable, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -28,6 +29,13 @@ EVAL_MINUTE = 12
 STATUS_MINUTE = 17  # off-peak minute for hourly status updates
 SCHEDULE_SYNC_SECONDS = 60
 MAIL_CHECK_MINUTES = 5  # default inbox poll cadence (env-tunable)
+
+# A mail briefing must BE a briefing — question-shaped replies ("How can I
+# help you with these?") leaked to the owner as alerts 2026-09-26.
+_DODGE_BRIEFING_RE = re.compile(
+    r"\b(how (can|may) i (help|assist)|how (would|do) you like|"
+    r"would you like me to|let me know what)\b",
+    re.IGNORECASE)
 SUGGEST_DAY_OF_WEEK = "sat"
 SUGGEST_HOUR = 10
 SUGGEST_MINUTE = 12
@@ -238,51 +246,65 @@ class Scheduler:
         self.notify(text)
 
     async def _mail_check(self) -> None:
-        """Poll Simon's M365 inbox; interrupt only for new, actionable mail.
+        """Poll Simon's M365 inbox; interrupt only for GENUINELY new mail.
 
-        The agent's persistent session history is the dedupe: it knows what
-        it already reported and must answer MAIL_CHECK_QUIET otherwise.
+        Deterministic-first (2026-09-29): the OLD design asked the model to
+        dedupe against its own session history — trimming lost it, so the
+        same weekly digest was re-briefed 19× in a week and question-shaped
+        replies leaked to the owner as mail alerts. Now: read the inbox
+        directly, filter to message ids never reported (mailwatch table),
+        and only involve the model to WORD the briefing — with a raw
+        from/subject/date floor if it dodges. No new mail = no model call
+        at all.
         """
         if self.agent_factory is None:
             return
-        # Interactive priority: on this single-GPU machine a background mail
-        # run evicts the chat model and stalls the user's next message —
-        # skip this tick if the owner is mid-conversation; the next tick is
-        # only minutes away.
         from . import agent as agent_mod
         if agent_mod.interactive_session_active():
             logger.info("mail check deferred — interactive session active")
             return
         try:
+            from . import mailwatch
+            from .tools.graph_mail import read_recent_emails_graph
+            raw = await asyncio.to_thread(
+                read_recent_emails_graph, self.settings, 10)
+            if raw.startswith("graph mail:") or raw == "Inbox is empty.":
+                return
+            ids = mailwatch.parse_ids(raw)
+            new_ids = mailwatch.unseen(ids)
+            if not new_ids:
+                return
+            new_blocks = mailwatch.blocks_for_ids(raw, new_ids)
             agent = self.agent_factory()
-            # Off the event loop (to_thread, same as the web/Slack/Teams
-            # interfaces) — a slow tool call in a background turn must not
-            # stall the scheduler or the chat sockets.
             reply = await asyncio.to_thread(
                 agent.handle,
-                "Background mail check (autonomous). Use ONLY the "
-                "read_recent_emails tool (count 5) on the "
-                "simon@mindpodtech.com mailbox — that is an email address, "
-                "not a website; do NOT fetch or browse any web page. Report "
-                "ONLY messages you have NOT already reported in this "
-                "session. If there is new mail needing the owner's "
-                "attention, reply with a tight briefing per message (from, "
-                "subject, what it needs). If there is nothing new, or "
-                "nothing worth interrupting for, reply with exactly: "
-                "MAIL_CHECK_QUIET"
-            )
-            if reply and "MAIL_CHECK_QUIET" not in reply:
-                # RECEIPTS GATE (Core 2.0 M3): a mail briefing without a
-                # read_recent_emails receipt is fabricated mail — the most
-                # dangerous hallucination class (fake messages, fake
-                # senders). Suppress and log; never deliver.
-                if "read_recent_emails" not in getattr(
-                        agent, "last_turn_tools", []):
-                    logger.warning("mail check briefing with no "
-                                   "read_recent_emails receipt — "
-                                   "suppressed (fabrication risk)")
-                else:
-                    self.notify(f"\U0001F4EC Mail check: {reply}")
+                "Background mail check (autonomous). These inbox messages "
+                "are NEW (never reported to the owner). Write a tight "
+                "briefing per message (from, subject, what it needs) — "
+                "plain text, no questions back to me. If none are worth "
+                "interrupting the owner for, reply with exactly: "
+                "MAIL_CHECK_QUIET\n\n" + new_blocks)
+            if reply and "MAIL_CHECK_QUIET" in reply:
+                mailwatch.mark_reported(new_ids)  # judged uninteresting
+                return
+            # Fabrication check: the briefing must anchor to the REAL
+            # blocks (a sender or subject token). A reply that names none of
+            # them is inventing mail — replace it with the raw floor.
+            anchors = [w for w in re.findall(r"[A-Za-z0-9@.\-]{4,}",
+                                             new_blocks)
+                       if w.lower() not in ("from", "date", "unread",
+                                            "http", "https")]
+            anchored = bool(reply) and any(
+                a.lower() in reply.lower() for a in anchors)
+            if reply and not _DODGE_BRIEFING_RE.search(reply) and anchored:
+                self.notify(f"\U0001F4EC Mail check: {reply}")
+                mailwatch.mark_reported(new_ids)
+                return
+            # The model dodged or invented content — deliver the raw floor:
+            # real senders and subjects, no prose.
+            logger.warning("mail briefing dodged/unanchored — raw floor")
+            self.notify("\U0001F4EC New mail, sir:\n\n" + new_blocks[:1500])
+            mailwatch.mark_reported(new_ids)
         except Exception:
             logger.exception("Mail check failed")
 
