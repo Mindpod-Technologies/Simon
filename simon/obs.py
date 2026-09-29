@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import json as _json
 import logging
 import sqlite3
 from typing import Any, Optional
@@ -78,6 +79,49 @@ def recent_events(limit: int = 50, kind: Optional[str] = None,
     finally:
         conn.close()
     return [dict(r) for r in rows]
+
+
+def activity(session_id: str, line: str, stage: str = "info",
+             interface: str = "", path: Optional[str] = None) -> None:
+    """One line for the live activity terminal (the WORK view's real-time
+    feed of what Simon is doing: routing, tool calls, gate events)."""
+    record_event("activity", session_id=session_id, interface=interface,
+                 path=path, stage=stage, line=line)
+
+
+def activity_since(after_id: int = 0, session_id: str = "",
+                   limit: int = 200, path: Optional[str] = None) -> list[dict]:
+    """Activity events with id > ``after_id``, oldest first — the terminal
+    pane polls this incrementally."""
+    conn = _connect(path)
+    try:
+        sql = ("SELECT id, ts, detail FROM events WHERE kind = 'activity'"
+               " AND id > ?")
+        args: list = [after_id]
+        if session_id:
+            sql += " AND session_id = ?"
+            args.append(session_id)
+        sql += " ORDER BY id ASC LIMIT ?"
+        args.append(limit)
+        rows = conn.execute(sql, tuple(args)).fetchall()
+    finally:
+        conn.close()
+    out = []
+    for r in rows:
+        try:
+            detail = _json.loads(r["detail"]) if r["detail"] else {}
+        except Exception:  # noqa: BLE001
+            detail = {}
+        inner = detail.get("detail", detail)
+        if isinstance(inner, str):
+            try:
+                inner = _json.loads(inner)
+            except Exception:  # noqa: BLE001
+                inner = {}
+        out.append({"id": r["id"], "ts": r["ts"],
+                    "stage": inner.get("stage", "info"),
+                    "line": inner.get("line", "")})
+    return [e for e in out if e["line"]]
 
 
 def summary(path: Optional[str] = None) -> dict:

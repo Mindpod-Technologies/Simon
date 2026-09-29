@@ -1053,6 +1053,47 @@
       .catch(function () { setStatus("MIC DENIED"); });
   });
 
+  /* ---- live activity terminal (watch Simon work, Cursor-style) ---- */
+  var termBtn = document.getElementById("term-toggle");
+  var terminal = document.getElementById("terminal");
+  var termBody = document.getElementById("term-body");
+  var termOn = false;
+  var termLastId = 0;
+  var termTimer = null;
+
+  function termPoll() {
+    fetch("/api/activity?after=" + termLastId)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var fresh = data.events || [];
+        fresh.forEach(function (ev) {
+          var div = document.createElement("div");
+          div.className = "tl tl-" + (ev.stage || "info");
+          div.textContent = ev.line;
+          termBody.appendChild(div);
+          termLastId = ev.id;
+        });
+        if (fresh.length) termBody.scrollTop = termBody.scrollHeight;
+      })
+      .catch(function () {});
+  }
+
+  if (termBtn) termBtn.addEventListener("click", function () {
+    termOn = !termOn;
+    terminal.hidden = !termOn;
+    transcript.style.display = termOn ? "none" : "";
+    var hero = document.getElementById("hero");
+    if (hero) hero.style.display = termOn ? "none" : "";
+    termBtn.classList.toggle("recording", termOn);
+    if (termOn) {
+      termPoll();
+      termTimer = setInterval(termPoll, 1500);
+    } else if (termTimer) {
+      clearInterval(termTimer);
+      termTimer = null;
+    }
+  });
+
   sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) {

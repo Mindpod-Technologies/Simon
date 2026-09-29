@@ -229,6 +229,7 @@ class Agent:
         """Handle one user turn and return Simon's final reply text."""
         memory.init_db()
         memory.add_message(self.session_id, "user", user_text)
+        self._act(f"▸ {user_text[:90]}", "user")
 
         messages = self._build_messages(user_text)
         schemas = self.registry.schemas() if self.registry else None
@@ -805,6 +806,9 @@ class Agent:
             if not str(output).startswith("Error"):
                 tools_used.append("calculator")
                 reply = f"{output}, sir — computed precisely."
+                self.last_turn_tools = list(tools_used)
+                self._act(f"✓ calculator ({arith.strip()}) = {output}",
+                          "tool-ok")
                 memory.add_message(self.session_id, "assistant", reply)
                 obs.record_event(
                     "turn", interface=self.interface,
@@ -816,6 +820,10 @@ class Agent:
                 return reply
 
         fast_model = getattr(self.llm, "model_fast", None)
+        self._act(f"brain: {model or getattr(self.llm, 'model', '?')}"
+                  + (f" ({self.llm.last_route_reason})"
+                     if getattr(self.llm, "last_route_reason", "") else ""),
+                  "route")
         # Frontier turns do heavy multi-step work (research → fetches →
         # documents); the local-sized budget of 5 iterations ran out
         # mid-write-up on a live job (2026-09-26). Double it for frontier.
@@ -902,10 +910,16 @@ class Agent:
                             f"grant this exact operation going forward, or "
                             f"**reject** and I'll stand down.")
                         approval_hold = True
+                        self._act(f"⚠ approval needed: {needs}", "approval")
                         logger.info("approval requested for %s",
                                     call["name"])
                         break
                 tools_used.append(call["name"])
+                _args_preview = ", ".join(
+                    f"{k}={str(v)[:40]}" for k, v in
+                    (call["arguments"] or {}).items())[:90]
+                self._act(f"→ {call['name']}({_args_preview})", "tool")
+                _tool_t0 = time.monotonic()
                 signature = call["name"] + json.dumps(call["arguments"],
                                                       sort_keys=True)
                 if failed_calls.get(signature, 0) >= 1:
@@ -931,6 +945,12 @@ class Agent:
                 if str(output).startswith("Error"):
                     tool_errors += 1
                     failed_calls[signature] = failed_calls.get(signature, 0) + 1
+                    self._act(f"✗ {call['name']} failed: "
+                              f"{str(output)[:80]}", "error")
+                else:
+                    self._act(f"✓ {call['name']} "
+                              f"({time.monotonic() - _tool_t0:.1f}s)",
+                              "tool-ok")
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call["id"],
@@ -1022,6 +1042,8 @@ class Agent:
             and _DODGE_RE.search(reply))
         if (tool_mandatory and not approval_hold and reply
                 and (not tools_used or _dodge)):
+            self._act("gate: receipts required — pressing for real action",
+                      "gate")
             if _dodge and tools_used:
                 logger.warning("completion gate: dodge reply despite %d "
                                "receipt(s) — pressuring for the deliverable",
@@ -1609,6 +1631,8 @@ class Agent:
 
         memory.add_message(self.session_id, "assistant", reply)
         self.last_turn_tools = list(tools_used)
+        self._act(f"● replied ({time.monotonic() - t0:.0f}s, "
+                  f"{len(tools_used)} tool calls)", "done")
         obs.record_event(
             "turn",
             interface=self.interface,
@@ -1695,6 +1719,15 @@ class Agent:
             answer = (answer.rstrip() + "\n\nStill outstanding: "
                       + "; ".join(unfinished))
         return answer
+
+    def _act(self, line: str, stage: str = "info") -> None:
+        """Emit one line to the live activity terminal (the WORK view's
+        real-time feed). Never raises; observability is free to fail."""
+        try:
+            obs.activity(self.session_id, line, stage=stage,
+                         interface=self.interface)
+        except Exception:  # pragma: no cover
+            pass
 
     def _sanitize_tool_name(self, name: str) -> str:
         """Models sometimes leak chat markup into tool-call names

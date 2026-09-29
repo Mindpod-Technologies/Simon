@@ -291,6 +291,34 @@
     border-color: rgba(63,198,201,0.5);
     box-shadow: 0 0 24px rgba(63,198,201,0.12);
   }
+  /* ---- live activity terminal ---- */
+  #terminal {
+    width: 100%; max-width: 780px; margin-top: 8px;
+    background: #0b0f13; border: 1px solid var(--panel-border);
+    border-radius: 14px; overflow: hidden;
+  }
+  #term-head {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.14em; color: var(--ink-dim);
+    padding: 10px 14px; border-bottom: 1px solid var(--panel-border);
+    background: rgba(63,198,201,0.04);
+  }
+  #term-body {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px; line-height: 1.65; padding: 12px 14px;
+    max-height: 52vh; overflow-y: auto; white-space: pre-wrap;
+    scrollbar-width: thin;
+  }
+  .tl { color: var(--ink); }
+  .tl-user { color: #9db4c0; }
+  .tl-route { color: #8a7fd4; }
+  .tl-tool { color: var(--accent); }
+  .tl-tool-ok { color: #4fbf8f; }
+  .tl-error { color: #e06c75; }
+  .tl-gate { color: #d8a657; }
+  .tl-approval { color: #e5b567; }
+  .tl-done { color: #4fbf8f; font-weight: 600; }
+
   #input {
     flex: 1; background: transparent; border: none; outline: none;
     color: var(--ink); font-size: 14px; padding: 6px 0;
@@ -460,6 +488,7 @@
         <button id="new-task" title="Create a new task workspace">+ TASK</button>
       </div>
       <button id="docs-toggle" title="Open the work tray">WORK <span id="work-count" class="work-badge" hidden>0</span></button>
+      <button id="term-toggle" title="Watch Simon work in real time">TERMINAL</button>
       <a href="/settings" style="text-decoration:none"><button>SETTINGS</button></a>
     </header>
 
@@ -478,6 +507,10 @@
           </div>
         </div>
         <div id="transcript"></div>
+        <div id="terminal" hidden>
+          <div id="term-head">SIMON — LIVE ACTIVITY</div>
+          <div id="term-body"></div>
+        </div>
       </div>
     </div>
 

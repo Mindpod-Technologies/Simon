@@ -295,6 +295,14 @@ def create_app(settings) -> FastAPI:
              "when": sched_mod.describe(r)}
             for r in rows]}
 
+    # ---- live activity terminal (the Cursor-style "watch Simon work" feed)
+
+    @app.get("/api/activity")
+    async def activity_endpoint(after: int = 0, session_id: str | None = None):
+        from simon import obs as obs_mod
+        return {"events": obs_mod.activity_since(
+            after_id=after, session_id=session_id or "")}
+
     # ---- artifacts: workspace files Simon creates (charts, docs, code) ----
 
     @app.get("/api/artifacts")
