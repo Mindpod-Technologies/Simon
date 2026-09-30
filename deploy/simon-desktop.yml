@@ -1,0 +1,29 @@
+# Simon's watchable desktop — Kasm/Webtop container.
+# One command once Docker Desktop is installed and running:
+#   docker compose -f deploy/simon-desktop.yml up -d
+# Then watch Simon work live at http://localhost:3000
+#
+# The container is loopback-only and fully isolated from the host Mac:
+# no host filesystem mounts, no host network, no docker socket.
+# Simon drives it via the vm_* tools (docker exec only).
+
+services:
+  simon-desktop:
+    image: lscr.io/linuxserver/webtop:ubuntu-xfce
+    container_name: simon-desktop
+    restart: unless-stopped
+    shm_size: "1gb"
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: America/New_York
+      SUBFOLDER: "/"
+      TITLE: "Simon's Desktop"
+    ports:
+      - "127.0.0.1:3000:3000"   # KasmVNC web view (http, loopback only)
+      - "127.0.0.1:3001:3001"   # https variant
+    volumes:
+      - simon-desktop-config:/config
+
+volumes:
+  simon-desktop-config:

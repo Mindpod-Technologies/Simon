@@ -193,6 +193,15 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
     except Exception as exc:  # noqa: BLE001
         log.warning("slack tools unavailable: %s", exc)
 
+    # Simon's own desktop VM (Kasm/Webtop container) — registers only when
+    # the container is actually running; see deploy/simon-desktop.yml.
+    try:
+        from . import vm_tool
+
+        vm_tool.register_vm_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("vm tools unavailable: %s", exc)
+
     if getattr(settings, "google_calendar_ics", ""):
         try:
             from . import calendar_tool
