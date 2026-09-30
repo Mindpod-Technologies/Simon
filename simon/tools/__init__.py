@@ -184,6 +184,15 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
     except Exception as exc:  # noqa: BLE001
         log.warning("graph mail tools unavailable: %s", exc)
 
+    # Slack workspace tools — Simon acts on the workspace (read, search,
+    # react), not just chats in it. Posting is approval-gated.
+    try:
+        from . import slack_tool
+
+        slack_tool.register_slack_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("slack tools unavailable: %s", exc)
+
     if getattr(settings, "google_calendar_ics", ""):
         try:
             from . import calendar_tool

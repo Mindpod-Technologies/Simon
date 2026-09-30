@@ -169,3 +169,11 @@ Dashboards (sign in with your Simon password):
   independent tool batching. New eval: work-proposal-acts-not-offers.
 - Auth UX: expired cookie now redirects to /login instead of a fake "can't reach my systems";
   sessions last 30 days. Chat autoscroll targets the real container.
+
+## 2026-09-29 — Slack toolset (Simon acts on the workspace)
+- New tools: slack_list_channels, slack_read_channel, slack_search, slack_react — and
+  slack_post / slack_pin (approval-gated: externally visible).
+- Bot token scope upgrade needed for channels: add channels:read + channels:history
+  (+ groups:read/history for private channels; search needs a user token on some plans)
+  in the Slack app config, then reinstall the app to the workspace.
+- DMs work today (im:history/im:read/chat:write are already granted).

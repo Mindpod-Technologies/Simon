@@ -72,7 +72,8 @@ _MCP_MUTATION_RE = re.compile(
     r"|comment|invite|publish|deploy|destroy|terminate)",
     re.IGNORECASE)
 
-_GATED_TOOLS = {"send_email", "delegate_dev", "ha_call_service", "run_shell"}
+_GATED_TOOLS = {"send_email", "delegate_dev", "ha_call_service", "run_shell",
+                "slack_post", "slack_pin"}
 
 
 def grant_key_for(tool_name: str, args: dict) -> str:
@@ -108,6 +109,11 @@ def _assess_ungated(tool_name: str, args: dict) -> Optional[str]:
         to = args.get("to", "?")
         subject = args.get("subject", "(no subject)")
         return f"send an email to {to} — \"{subject}\""
+    if name in ("slack_post", "slack_pin"):
+        verb = "post to" if name == "slack_post" else "pin a message in"
+        detail = str(args.get("text", args.get("timestamp", "")))[:60]
+        return (f"{verb} Slack channel {args.get('channel', '?')}"
+                + (f" — \"{detail}\"" if detail else ""))
     if name == "delegate_dev":
         task = str(args.get("task", ""))[:120]
         return f"delegate development work to a coding agent — {task}"
