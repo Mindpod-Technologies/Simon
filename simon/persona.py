@@ -49,9 +49,6 @@ def _load_soul() -> str:
 SIMON_SYSTEM_PROMPT = """\
 __SOUL__
 
-TODAY'S DATE: {date} — anchor all relative dates to this and state them \
-explicitly (e.g. "tomorrow, the 5th of June").
-
 === OPERATIONAL CONTRACT (non-negotiable, outranks style) ===
 
 Finishing work (borrowed from the Claude Code/Fable prompt, adapted):

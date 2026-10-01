@@ -3,12 +3,35 @@ from __future__ import annotations
 
 import importlib.util
 import logging
+import re
 import sys
 from pathlib import Path
 
 from .base import Tool
 
 log = logging.getLogger(__name__)
+
+# Mutating tools get STRICT argument validation (unknown args = refusal,
+# never a silent drop). Central classification: explicit flag on the Tool,
+# the known builtin set, or a mutation-verb name pattern (covers MCP tools
+# like mcp_github_merge_pull_request automatically).
+_MUTATING_NAMES = {
+    "send_email", "slack_post", "slack_pin", "write_file", "create_document",
+    "schedule_task", "cancel_schedule", "start_job", "cancel_job",
+    "remember_fact", "take_note", "ingest_note", "teach_skill",
+    "delegate_dev", "ha_call_service", "run_shell",
+}
+_MUTATING_NAME_RE = re.compile(
+    r"(push|merge|delete|remove|send|post|pay|charge|refund|transfer"
+    r"|comment|invite|publish|deploy|destroy|terminate|create|write"
+    r"|schedule|cancel|pin|book|order|purchase|execute)", re.IGNORECASE)
+
+
+def _is_mutating(tool) -> bool:
+    """True when the tool changes state or is externally visible."""
+    return (bool(getattr(tool, "mutating", False))
+            or tool.name in _MUTATING_NAMES
+            or bool(_MUTATING_NAME_RE.search(tool.name)))
 
 # Repo-root plugins/ directory (simon/tools/../.. == repo root, + plugins)
 PLUGINS_DIR = Path(__file__).resolve().parents[2] / "plugins"
@@ -65,16 +88,43 @@ class ToolRegistry:
             return f"Error: unknown tool '{name}'"
         args = dict(args or {})
         # Robustness: local models routinely invent parameters ("topn",
-        # "num_results") that are not in the schema. Dropping them beats
-        # crashing the call — a tool that runs with slightly fewer wishes
-        # still produces real receipts; a TypeError produces nothing.
+        # "num_results") that are not in the schema. For READ-ONLY tools,
+        # dropping them beats crashing — the call still produces real
+        # receipts. For MUTATING tools an invented arg may carry meaning
+        # (a recipient, a namespace, a dry_run flag) — executing without it
+        # performs a DIFFERENT action than the model intended, with a real
+        # receipt to show for it. Refuse instead, with self-correction info.
         accepted = self._accepted_args(t)
         if accepted is not None:
             unknown = [k for k in args if k not in accepted]
             if unknown:
+                if _is_mutating(t):
+                    log.warning("tool %r REFUSED: model-invented arg(s) %s "
+                                "on a mutating call", name, unknown)
+                    return (f"Error: tool '{name}' refused: unknown "
+                            f"argument(s) {unknown}. This action changes "
+                            f"state, so nothing was executed. Accepted "
+                            f"arguments: {sorted(accepted)}. Re-issue with "
+                            f"only those.")
                 log.warning("tool %r: dropping model-invented arg(s) %s",
                             name, unknown)
                 args = {k: v for k, v in args.items() if k in accepted}
+        # Idempotency for mutating calls: an identical repeat within the TTL
+        # (gate retry, nudge loop, refired turn) returns the recorded result
+        # instead of executing twice — no double-sent emails, ever. Tools
+        # that manage their own clobber protection (idempotent=True) opt out.
+        if _is_mutating(t) and not getattr(t, "idempotent", False):
+            from .. import idempotency
+            key = idempotency.key_for(name, args)
+            try:
+                prior = idempotency.lookup(key)
+            except Exception:  # pragma: no cover - never break a call
+                prior = None
+            if prior is not None:
+                log.info("tool %r: identical call already ran — returning "
+                         "recorded result instead of re-executing", name)
+                return (prior + "\n(Already executed — identical call "
+                        "completed moments ago; not repeated.)")
         try:
             result = t.func(**args)
         except TypeError as exc:
@@ -93,7 +143,14 @@ class ToolRegistry:
         except Exception as exc:  # noqa: BLE001 - must never raise
             log.warning("tool %r failed: %s", name, exc)
             return f"Error: {exc}"
-        return result if isinstance(result, str) else str(result)
+        result = result if isinstance(result, str) else str(result)
+        if _is_mutating(t):
+            from .. import idempotency
+            try:
+                idempotency.record(key, name, result)
+            except Exception:  # pragma: no cover - never break a call
+                pass
+        return result
 
     def __contains__(self, name: str) -> bool:
         return name in self._tools

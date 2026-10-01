@@ -4,7 +4,18 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
 from simon.tools import ToolRegistry, graph_mail
+
+
+@pytest.fixture(autouse=True)
+def _fresh_db(tmp_path, monkeypatch):
+    """Idempotency records live in the memory DB — isolate per test so a
+    prior test's send never dedupes this test's first send."""
+    from simon import memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "g.db"))
+    memory.init_db()
 
 
 def _settings(**kw):

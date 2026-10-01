@@ -1,0 +1,58 @@
+# Simon policy pack — guardrails as data.
+# First matching rule wins. Verdicts: approve (park for owner), deny, allow.
+# Deployments override with SIMON_POLICY_FILE. Edit code (approvals.py)
+# only for what policy can't express.
+
+rules:
+  # Externally visible comms always ask the owner.
+  - tool: send_email
+    verdict: approve
+    reason: "send an email to {to}"
+  - tool: slack_post
+    verdict: approve
+    reason: "post to Slack channel {channel}"
+  - tool: slack_pin
+    verdict: approve
+    reason: "pin a message in Slack channel {channel}"
+
+  # Delegated development (spends coding-agent tokens, writes code).
+  - tool: delegate_dev
+    verdict: approve
+    reason: "delegate development work to a coding agent — {task}"
+
+  # Smart home control.
+  - tool: ha_call_service
+    verdict: approve
+    reason: "call smart-home service {service} on {entity_id}"
+
+  # Shell: destructive verbs ask; the rest run free (approvals.py refines).
+  - tool: run_shell
+    verdict: approve
+    when:
+      command: "rm|rmdir|unlink|git\\s+push|git\\s+reset|kill|pkill|killall|shutdown|reboot|chmod|chown|dd |mkfs|format|>\\s*/dev/"
+    reason: "run a destructive shell command — {command}"
+
+  # MCP mutations (push/merge/delete/publish/…) ask; reads stay free.
+  - tool: mcp_*push*
+    verdict: approve
+    reason: external mutation via MCP
+  - tool: mcp_*merge*
+    verdict: approve
+    reason: external mutation via MCP
+  - tool: mcp_*delete*
+    verdict: approve
+    reason: external mutation via MCP
+  - tool: mcp_*publish*
+    verdict: approve
+    reason: external mutation via MCP
+  - tool: mcp_apify_call_actor
+    verdict: approve
+    reason: "run a paid Apify actor — {actor} (spends Apify credits)"
+  - tool: mcp_apify_run_actor
+    verdict: approve
+    reason: "run a paid Apify actor — {actor} (spends Apify credits)"
+
+  # Payment rails are denied outright until a deployment opts in.
+  - tool: mcp_stripe_*
+    verdict: deny
+    reason: payment operations are disabled in this deployment

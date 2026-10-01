@@ -71,6 +71,8 @@ class _FakeAgent:
             return "391, sir — computed precisely."
         if "shoe size" in text:
             return "I don't have that on record, sir."
+        if "capital of France" in text:
+            return "Paris"
         return "I can do many things. " * 20
 
 
@@ -89,7 +91,7 @@ def test_maintenance_clean_pass(db, monkeypatch):
         restart=lambda label: True,
         agent_factory=_factory)
     assert "All systems nominal" in digest
-    assert "eval battery: 3/3 passed" in digest
+    assert "eval battery: 4/4 passed" in digest
     assert sent == [digest]
 
 

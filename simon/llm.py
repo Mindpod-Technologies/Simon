@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time as _time_mod
 from typing import Any, Optional
 
 from openai import OpenAI
@@ -238,12 +239,31 @@ class LLM:
         low = f" {(user_text or '').lower()} "
         return any(p in low for p in FRONTIER_OVERRIDE_PHRASES)
 
+    def _record_chat_span(self, model: str, response: Any,
+                          started: float) -> None:
+        """One 'chat' span per model call — token usage + duration, linked
+        to the current turn's trace. Never raises."""
+        try:
+            from . import obs as _obs
+            from .context import current_trace
+            usage = getattr(response, "usage", None)
+            _obs.record_span(
+                current_trace.get(""), "chat", parent=current_trace.get(""),
+                model=model,
+                duration_ms=int((_time_mod.monotonic() - started) * 1000),
+                prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+                completion_tokens=int(
+                    getattr(usage, "completion_tokens", 0) or 0))
+        except Exception:  # noqa: BLE001
+            pass
+
     def _chat_remote(self, messages: list[dict], tools: Optional[list[dict]],
                      model_id: str, response_format: Optional[dict] = None
                      ) -> dict:
         """Call the OmniRoute/frontier endpoint with an arbitrary model id.
         Bounded retry on admission-control 503s ("chat_admission_busy —
         retry shortly" killed a live job turn on 2026-09-27)."""
+        started = _time_mod.monotonic()
         kwargs: dict[str, Any] = {"model": model_id, "messages": messages}
         # Frontier reasoning effort applies to the frontier model only — the
         # cheap smart lane should stay fast.
@@ -271,6 +291,7 @@ class LLM:
         if response is None and last_exc is not None:
             raise last_exc
         self._log_usage(model_id, response)
+        self._record_chat_span(model_id, response, started)
         if not response.choices:
             return {"content": None, "tool_calls": []}
         message = response.choices[0].message
@@ -294,6 +315,7 @@ class LLM:
         sampling extras are not applied there.
         """
         model = model or self.model
+        started = _time_mod.monotonic()
         if (self.frontier_enabled and self._frontier_client is not None
                 and model == self.model_frontier):
             return self._chat_remote(messages, tools, model)
@@ -325,6 +347,7 @@ class LLM:
             kwargs["tools"] = tools
         response = self._client.chat.completions.create(**kwargs)
         self._log_usage(model, response)
+        self._record_chat_span(model, response, started)
 
         if not response.choices:
             return {"content": None, "tool_calls": []}

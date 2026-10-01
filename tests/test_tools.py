@@ -8,6 +8,15 @@ import pytest
 from simon.tools import Tool, ToolRegistry, build_default_registry, tool
 
 
+@pytest.fixture(autouse=True)
+def _fresh_db(tmp_path, monkeypatch):
+    """Idempotency records live in the memory DB — isolate per test so a
+    prior test's mutating call never dedupes this test's first call."""
+    from simon import memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "t.db"))
+    memory.init_db()
+
+
 def make_settings(workspace: str, allow_shell: bool = False) -> SimpleNamespace:
     """Minimal Settings-compatible stub (matches simon.config.Settings fields)."""
     return SimpleNamespace(
@@ -102,7 +111,7 @@ def test_missing_required_arg_returns_schema_guidance():
     ))
     out = registry.call("create_document", {"file_path": "x.md"})
     assert out.startswith("Error")
-    assert "title" in out and "required" in out.lower()
+    assert "title" in out  # names the accepted argument(s) for self-correction
     # And the corrected retry then works:
     assert registry.call("create_document", {"title": "PRD"}) == "doc:PRD"
 
@@ -237,3 +246,98 @@ def test_example_plugin_joke_loaded(tmp_path):
     assert "joke" in reg
     result = reg.call("joke", {})
     assert isinstance(result, str) and result
+
+
+def test_mutating_tool_refuses_unknown_args():
+    """Strict-arg contract: a mutating call with model-invented args is
+    REFUSED with self-correction info — never silently executed with a
+    different meaning (the 2026 'worst possible outcome' anti-pattern)."""
+    registry = ToolRegistry()
+    executed = []
+    registry.register(Tool(
+        name="send_email",
+        description="Send mail.",
+        parameters={"type": "object",
+                    "properties": {"to": {"type": "string"}},
+                    "required": ["to"]},
+        func=lambda to: executed.append(to) or f"sent to {to}",
+    ))
+    out = registry.call("send_email", {"to": "a@b.com", "priority": "high"})
+    assert out.startswith("Error") and "refused" in out
+    assert "priority" in out and "to" in out
+    assert executed == []  # nothing executed
+
+
+def test_readonly_tool_still_drops_unknown_args():
+    """Read-only tools keep the forgiving path — a stray arg changes
+    nothing observable."""
+    registry = ToolRegistry()
+    registry.register(Tool(
+        name="web_search", description="Search.",
+        parameters={"type": "object", "properties": {"query": {"type": "string"}}},
+        func=lambda query: f"results for {query}",
+    ))
+    assert registry.call("web_search", {"query": "x", "topn": 5}) == \
+        "results for x"
+
+
+def test_mcp_mutation_names_classified_mutating():
+    from simon.tools import _is_mutating
+    from simon.tools.base import Tool as _T
+    assert _is_mutating(_T(name="mcp_github_merge_pull_request",
+                           description="", parameters={}, func=lambda: ""))
+    assert not _is_mutating(_T(name="mcp_github_get_file_contents",
+                               description="", parameters={}, func=lambda: ""))
+
+
+def test_mutating_call_is_idempotent(tmp_path, monkeypatch):
+    """An identical mutating call inside the TTL returns the recorded
+    result instead of executing twice — no double-sent emails."""
+    from simon import memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "s.db"))
+    memory.init_db()
+    registry = ToolRegistry()
+    executed = []
+    registry.register(Tool(
+        name="send_email", description="Send mail.",
+        parameters={"type": "object", "properties": {"to": {"type": "string"}}},
+        func=lambda to: executed.append(to) or f"sent to {to}",
+    ))
+    args = {"to": "a@b.com"}
+    first = registry.call("send_email", args)
+    second = registry.call("send_email", args)
+    assert executed == ["a@b.com"]          # executed exactly once
+    assert first.startswith("sent to")
+    assert "not repeated" in second
+
+
+def test_different_args_execute_fresh(tmp_path, monkeypatch):
+    from simon import memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "s.db"))
+    memory.init_db()
+    registry = ToolRegistry()
+    executed = []
+    registry.register(Tool(
+        name="send_email", description="Send mail.",
+        parameters={"type": "object", "properties": {"to": {"type": "string"}}},
+        func=lambda to: executed.append(to) or f"sent to {to}",
+    ))
+    registry.call("send_email", {"to": "a@b.com"})
+    registry.call("send_email", {"to": "c@d.com"})
+    assert executed == ["a@b.com", "c@d.com"]
+
+
+def test_error_results_are_never_cached(tmp_path, monkeypatch):
+    from simon import memory
+    monkeypatch.setattr(memory, "DEFAULT_DB_PATH", str(tmp_path / "s.db"))
+    memory.init_db()
+    registry = ToolRegistry()
+    calls = []
+    registry.register(Tool(
+        name="send_email", description="Send mail.",
+        parameters={"type": "object", "properties": {"to": {"type": "string"}}},
+        func=lambda to: calls.append(to) or "Error: smtp down",
+    ))
+    registry.call("send_email", {"to": "a@b.com"})
+    registry.call("send_email", {"to": "a@b.com"})
+    assert len(calls) == 2  # errors retry for real

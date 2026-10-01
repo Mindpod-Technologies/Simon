@@ -129,4 +129,5 @@ def register_learn_tools(registry, settings) -> None:
             "required": ["name", "description", "procedure"],
         },
         func=teach_skill,
+        idempotent=True,  # manages its own name-clash protection
     ))

@@ -208,9 +208,12 @@ class Agent:
     @_track_interactive
     def handle(self, user_text: str) -> str:
         """Handle one user turn; record an 'error' event if the turn crashes."""
-        from .context import current_session, current_user_text
+        import uuid
+        from .context import current_session, current_trace, current_user_text
         token = current_session.set(self.session_id)
         text_token = current_user_text.set(user_text or "")
+        trace_token = current_trace.set(uuid.uuid4().hex[:12])
+        t0 = time.monotonic()
         try:
             return self._handle(user_text)
         except Exception as exc:
@@ -222,6 +225,11 @@ class Agent:
                 user_text=user_text[:200])
             raise
         finally:
+            obs.record_span(
+                current_trace.get(""), "turn", session_id=self.session_id,
+                interface=self.interface,
+                duration_ms=int((time.monotonic() - t0) * 1000))
+            current_trace.reset(trace_token)
             current_user_text.reset(text_token)
             current_session.reset(token)
 
@@ -776,6 +784,19 @@ class Agent:
                 except Exception:  # pragma: no cover - never break a turn
                     needs = None
                 if needs:
+                    if needs.startswith("BLOCKED by policy"):
+                        reply = (f"I can't, sir — {needs[18:]}. That action "
+                                 f"is disabled in this deployment.")
+                        memory.add_message(self.session_id, "assistant",
+                                           reply)
+                        obs.record_event(
+                            "turn", interface=self.interface,
+                            session_id=self.session_id, model="(none)",
+                            route_reason="policy deny (explicit email)",
+                            latency_ms=int((time.monotonic() - t0) * 1000),
+                            tools=[], tool_errors=0, escalated=False,
+                            reply_len=len(reply), user_len=len(user_text))
+                        return reply
                     logger.info("explicit email command — parking for "
                                 "approval (%s)", args["to"])
                     approvals.request(self.session_id, "send_email", args,
@@ -898,8 +919,25 @@ class Agent:
                     except Exception:  # pragma: no cover - never break a turn
                         needs = None
                     if needs:
+                        if needs.startswith("BLOCKED by policy"):
+                            # Policy deny: no parking, no execution, no
+                            # retry — the tool result says so plainly.
+                            self._act(f"⛔ policy deny: {call['name']}",
+                                      "gate")
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": call["id"],
+                                "content": (f"Error: {needs} — this action "
+                                            f"is disabled in this "
+                                            f"deployment. Do not retry."),
+                            })
+                            tool_errors += 1
+                            continue
                         # Sensitive action — park it and ask the owner
                         # instead of executing. "Autonomous, not unsupervised."
+                        # The rest of the batch still runs: parking one call
+                        # must not silently drop its siblings (they each get
+                        # a tool result so the protocol stays whole).
                         approvals.request(self.session_id, call["name"],
                                           call["arguments"], needs,
                                           interface=self.interface)
@@ -913,7 +951,13 @@ class Agent:
                         self._act(f"⚠ approval needed: {needs}", "approval")
                         logger.info("approval requested for %s",
                                     call["name"])
-                        break
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": call["id"],
+                            "content": ("Parked pending owner approval — NOT "
+                                        "executed. Do not retry this turn."),
+                        })
+                        continue
                 tools_used.append(call["name"])
                 _args_preview = ", ".join(
                     f"{k}={str(v)[:40]}" for k, v in
@@ -951,6 +995,17 @@ class Agent:
                     self._act(f"✓ {call['name']} "
                               f"({time.monotonic() - _tool_t0:.1f}s)",
                               "tool-ok")
+                try:
+                    from .context import current_trace
+                    obs.record_span(
+                        current_trace.get(""), "tool",
+                        parent=current_trace.get(""),
+                        session_id=self.session_id, interface=self.interface,
+                        duration_ms=int((time.monotonic() - _tool_t0)
+                                        * 1000),
+                        detail=call["name"])
+                except Exception:  # pragma: no cover - tracing never breaks
+                    pass
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call["id"],
@@ -1095,6 +1150,18 @@ class Agent:
                         except Exception:  # pragma: no cover - defensive
                             needs = None
                         if needs:
+                            if needs.startswith("BLOCKED by policy"):
+                                # Policy deny inside the gate: tool result,
+                                # no parking, no execution.
+                                retry_messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": call["id"],
+                                    "content": (f"Error: {needs} — disabled "
+                                                f"in this deployment. Do "
+                                                f"not retry."),
+                                })
+                                tool_errors += 1
+                                continue
                             approvals.request(
                                 self.session_id, call["name"],
                                 call["arguments"], needs,
@@ -1943,12 +2010,26 @@ class Agent:
         return None
 
     def _build_messages(self, user_text: str) -> list[dict]:
-        """Assemble system prompt + recent history + the new user message."""
+        """Assemble system prompt + recent history + the new user message.
+
+        Layered for prefix caching: the STABLE block (soul + operational
+        contract) renders byte-identical across turns and days; everything
+        volatile (date, mailbox, profile, facts, RAG, assignment state) is
+        appended after it, newest context last. Cache breakpoints sit at
+        the stable/volatile boundary — a fact injection never invalidates
+        the contract prefix.
+        """
         system_prompt = build_prompt(
             date=datetime.date.today().strftime("%A, %d %B %Y"),
             mailbox=getattr(self.settings, "simon_mailbox", "")
                     or "(not configured)",
         )
+        # Volatile tail begins here — nothing above may change per-turn.
+        system_prompt += (
+            f"\n\n=== LIVE CONTEXT ===\nTODAY'S DATE: "
+            f"{datetime.date.today().strftime('%A, %d %B %Y')} — anchor all "
+            f"relative dates to this and state them explicitly (e.g. "
+            f"\"tomorrow, the 5th of June\").")
         # Per-person profile: family/team members are addressed by name and
         # their facts attributed to them; no profile = the owner ("sir").
         try:

@@ -59,6 +59,12 @@ _EVAL_BATTERY = [
              s in r for s in ("size 8", "size 9", "size 10", "size 11"))),
     ("capabilities", "Simon, tell me all of what you can do",
      lambda r: len(r) >= 120),
+    # Drift canary (2026 research consensus: golden-set probes catch silent
+    # provider model rolls before users do): a fixed one-word factual probe
+    # through the fast tier every pass. If the answer drifts, the model
+    # under us changed.
+    ("drift-canary", "Reply with one word only: the capital of France",
+     lambda r: "paris" in r.lower()),
 ]
 
 

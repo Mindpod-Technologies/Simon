@@ -32,6 +32,26 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind);
+
+-- Trace spans (OTel-lite): one trace per turn, a span per model call and
+-- tool call, with token usage — the substrate for per-customer cost
+-- accounting and drift analysis (2026-10-01).
+CREATE TABLE IF NOT EXISTS spans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT NOT NULL,
+    trace_id TEXT NOT NULL,
+    parent TEXT DEFAULT '',
+    name TEXT NOT NULL,           -- 'turn' | 'chat' | 'tool'
+    session_id TEXT DEFAULT '',
+    interface TEXT DEFAULT '',
+    model TEXT DEFAULT '',
+    duration_ms INTEGER DEFAULT 0,
+    prompt_tokens INTEGER DEFAULT 0,
+    completion_tokens INTEGER DEFAULT 0,
+    detail TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_spans_trace ON spans(trace_id);
+CREATE INDEX IF NOT EXISTS idx_spans_ts ON spans(ts);
 """
 
 
@@ -79,6 +99,47 @@ def recent_events(limit: int = 50, kind: Optional[str] = None,
     finally:
         conn.close()
     return [dict(r) for r in rows]
+
+
+def record_span(trace_id: str, name: str, *, parent: str = "",
+                session_id: str = "", interface: str = "", model: str = "",
+                duration_ms: int = 0, prompt_tokens: int = 0,
+                completion_tokens: int = 0, detail: str = "",
+                path: Optional[str] = None) -> None:
+    """Append one trace span. Never raises — tracing must not break work."""
+    try:
+        conn = _connect(path)
+        try:
+            conn.execute(
+                "INSERT INTO spans (ts, trace_id, parent, name, session_id,"
+                " interface, model, duration_ms, prompt_tokens,"
+                " completion_tokens, detail) VALUES (?, ?, ?, ?, ?, ?, ?,"
+                " ?, ?, ?, ?)",
+                (datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                 trace_id, parent, name, session_id, interface, model,
+                 duration_ms, prompt_tokens, completion_tokens, detail))
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("obs.record_span failed: %s", exc)
+
+
+def usage_by_day(days: int = 7, path: Optional[str] = None) -> list[dict]:
+    """Token usage per model per day — the cost-accounting substrate."""
+    conn = _connect(path)
+    try:
+        rows = conn.execute(
+            "SELECT substr(ts, 1, 10) AS day, model,"
+            " SUM(prompt_tokens) AS prompt_toks,"
+            " SUM(completion_tokens) AS completion_toks, COUNT(*) AS calls"
+            " FROM spans WHERE name = 'chat'"
+            " AND ts >= date('now', ?)"
+            " GROUP BY day, model ORDER BY day DESC",
+            (f"-{int(days)} days",)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 
 def activity(session_id: str, line: str, stage: str = "info",

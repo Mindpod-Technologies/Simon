@@ -20,3 +20,7 @@ current_session: contextvars.ContextVar[str] = contextvars.ContextVar(
 
 current_user_text: contextvars.ContextVar[str] = contextvars.ContextVar(
     "simon_current_user_text", default="")
+
+# Trace id for the current turn — llm.chat records its spans under it.
+current_trace: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "simon_current_trace", default="")

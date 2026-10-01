@@ -93,9 +93,26 @@ def grant_key_for(tool_name: str, args: dict) -> str:
 
 def assess(tool_name: str, args: dict) -> Optional[str]:
     """Return a human summary if the call needs owner approval, else None.
-    Active standing grants clear their exact operations without asking."""
+    Active standing grants clear their exact operations without asking.
+
+    The policy pack (policy.yml / SIMON_POLICY_FILE) evaluates FIRST —
+    guardrails as data. 'deny' blocks outright; 'approve' parks; no match
+    falls through to the code defaults below."""
     name = (tool_name or "").strip()
     args = args or {}
+    try:
+        from . import policy
+        ruling = policy.evaluate(name, args)
+    except Exception:  # pragma: no cover - policy must never break a turn
+        ruling = None
+    if ruling and ruling["verdict"] == "deny":
+        return f"BLOCKED by policy: {ruling['reason']}"
+    if ruling and ruling["verdict"] == "approve":
+        if _has_grant(grant_key_for(name, args)):
+            return None
+        return ruling["reason"]
+    if ruling and ruling["verdict"] == "allow":
+        return None
     if name not in _GATED_TOOLS and not name.startswith("mcp_"):
         return None
     if _has_grant(grant_key_for(name, args)):
