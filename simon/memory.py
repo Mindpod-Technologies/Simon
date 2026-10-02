@@ -8,6 +8,7 @@ tests can use a temporary database.
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from typing import Optional
@@ -59,11 +60,18 @@ def init_db(path: Optional[str] = None) -> None:
         # ('user' = stated by a human, 'model' = inferred by Simon) and a
         # quarantine flag. Two production incidents were memory poisoning —
         # model-written fabrications injected as ground truth for weeks.
+        # Temporal migration (2026-10-01): valid_until (None = forever),
+        # reinforced (confirmation count), last_confirmed — trust decays
+        # for model-inferred facts that nobody ever re-confirms.
         for ddl in (
             "ALTER TABLE facts ADD COLUMN source TEXT NOT NULL"
             " DEFAULT 'user'",
             "ALTER TABLE facts ADD COLUMN quarantined INTEGER NOT NULL"
             " DEFAULT 0",
+            "ALTER TABLE facts ADD COLUMN valid_until TEXT",
+            "ALTER TABLE facts ADD COLUMN reinforced INTEGER NOT NULL"
+            " DEFAULT 1",
+            "ALTER TABLE facts ADD COLUMN last_confirmed TEXT",
         ):
             try:
                 conn.execute(ddl)
@@ -108,19 +116,50 @@ def get_history(session_id: str, limit: int = 40,
 
 
 def set_fact(key: str, value: str, path: Optional[str] = None,
-             source: str = "user") -> None:
-    """Insert or update a long-term fact, tagged with its provenance."""
+             source: str = "user", valid_until: Optional[str] = None) -> None:
+    """Insert or update a long-term fact, tagged with its provenance.
+
+    Temporal trust: re-stating the same value REINFORCES the record
+    (reinforced++, last_confirmed=now); a new value supersedes with
+    reinforce reset. ``valid_until`` (ISO date/datetime) makes the fact
+    self-expiring — it stops surfacing after that moment.
+    """
     if source not in ("user", "model"):
         source = "model"
     conn = _connect(path)
     try:
+        existing = None
+        try:
+            existing = conn.execute(
+                "SELECT value, reinforced FROM facts WHERE key = ?",
+                (key,)).fetchone()
+        except Exception:  # pre-migration DB
+            pass
+        if existing is not None and existing["value"] == value:
+            conn.execute(
+                "UPDATE facts SET reinforced = reinforced + 1,"
+                " last_confirmed = datetime('now'),"
+                " updated_at = datetime('now') WHERE key = ?", (key,))
+        elif existing is not None:
+            conn.execute(
+                "UPDATE facts SET value = ?, source = ?, reinforced = 1,"
+                " last_confirmed = datetime('now'), valid_until = ?,"
+                " updated_at = datetime('now') WHERE key = ?",
+                (value, source, valid_until, key))
+        else:
+            conn.execute(
+                "INSERT INTO facts (key, value, source, valid_until,"
+                " reinforced, last_confirmed, updated_at)"
+                " VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))",
+                (key, value, source, valid_until))
+        conn.commit()
+    except Exception:  # pre-migration DB without the new columns
         conn.execute(
             "INSERT INTO facts (key, value, source, updated_at)"
             " VALUES (?, ?, ?, datetime('now')) "
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
             "source = excluded.source, updated_at = excluded.updated_at",
-            (key, value, source),
-        )
+            (key, value, source))
         conn.commit()
     finally:
         conn.close()
@@ -222,8 +261,10 @@ def search_facts(query: str, path: Optional[str] = None,
     try:
         try:
             rows = conn.execute(
-                "SELECT key, value, source FROM facts"
-                " WHERE quarantined = 0").fetchall()
+                "SELECT key, value, source, reinforced FROM facts"
+                " WHERE quarantined = 0"
+                " AND (valid_until IS NULL OR valid_until > datetime('now'))"
+                ).fetchall()
         except Exception:  # pre-migration database
             rows = conn.execute("SELECT key, value FROM facts").fetchall()
     finally:
@@ -239,16 +280,19 @@ def search_facts(query: str, path: Optional[str] = None,
         return [_pack(r) for r in rows
                 if like in r["key"].lower() or like in r["value"].lower()]
 
-    scored: list[tuple[int, int, Any]] = []
+    scored: list[tuple[int, int, int, Any]] = []
     for row in rows:
         haystack = f"{row['key'].replace('_', ' ')} {row['value']}".lower()
         score = sum(1 for w in significant if w in haystack)
         if score:
             source = row["source"] if "source" in row.keys() else "user"
             trust = 0 if source == "user" else 1
-            scored.append((score, trust, row))
-    scored.sort(key=lambda item: (-item[0], item[1], item[2]["key"]))
-    return [_pack(row) for _score, _trust, row in scored]
+            reinforced = (row["reinforced"]
+                          if "reinforced" in row.keys() else 1)
+            scored.append((score, trust, -int(reinforced or 1), row))
+    scored.sort(key=lambda item: (-item[0], item[1], item[2],
+                                  item[3]["key"]))
+    return [_pack(row) for _score, _trust, _neg_reinf, row in scored]
 
 
 def add_reminder(text: str, run_at_iso: str, session_id: str = "",
@@ -312,5 +356,82 @@ def delete_reminder(reminder_id: int, path: Optional[str] = None) -> None:
     try:
         conn.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
         conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Erasure cascade (GDPR-grade "delete everything about X")
+# ---------------------------------------------------------------------------
+
+_ERASURE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS erasure_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    term_hash TEXT NOT NULL,
+    counts TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
+
+def erase_subject(term: str, include_history: bool = False,
+                  path: Optional[str] = None) -> dict:
+    """Erase a data subject term across every store, with a tombstone.
+
+    - facts: matching (key or value) are QUARANTINED (recoverable) —
+      hard-delete is available via delete_fact for confirmed cases
+    - RAG: matching chunks are deleted from rag_chunks AND the FTS mirror
+    - history: with include_history=True, matching messages are DELETED
+      (off by default — conversation records are legal-hold material)
+    - tombstone: an erasure_log row (term stored HASHED, never plain)
+      recording counts — provable deletion without retaining the data.
+
+    Returns the per-store counts.
+    """
+    import hashlib
+
+    init_db(path)
+    term_hash = hashlib.sha256(term.strip().lower().encode()).hexdigest()
+    like = f"%{term.strip()}%"
+    counts: dict[str, int] = {}
+    conn = _connect(path)
+    try:
+        conn.executescript(_ERASURE_SCHEMA)
+        cur = conn.execute(
+            "UPDATE facts SET quarantined = 1 WHERE key LIKE ? OR value"
+            " LIKE ?", (like, like))
+        counts["facts_quarantined"] = cur.rowcount
+        for table in ("rag_chunks", "rag_fts"):
+            try:
+                cur = conn.execute(
+                    f"DELETE FROM {table} WHERE content LIKE ?", (like,))
+                counts[f"{table}_deleted"] = cur.rowcount
+            except Exception:  # table absent
+                counts[f"{table}_deleted"] = 0
+        if include_history:
+            cur = conn.execute(
+                "DELETE FROM messages WHERE content LIKE ?", (like,))
+            counts["messages_deleted"] = cur.rowcount
+        else:
+            counts["messages_deleted"] = 0
+        conn.execute(
+            "INSERT INTO erasure_log (term_hash, counts) VALUES (?, ?)",
+            (term_hash, json.dumps(counts)))
+        conn.commit()
+    finally:
+        conn.close()
+    return counts
+
+
+def erasure_log(path: Optional[str] = None) -> list[dict]:
+    """The tombstone ledger — provable deletion without retained data."""
+    conn = _connect(path)
+    try:
+        conn.executescript(_ERASURE_SCHEMA)
+        rows = conn.execute(
+            "SELECT term_hash, counts, created_at FROM erasure_log"
+            " ORDER BY id DESC").fetchall()
+        return [{"term_hash": r["term_hash"], "counts": r["counts"],
+                 "created_at": r["created_at"]} for r in rows]
     finally:
         conn.close()

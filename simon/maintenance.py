@@ -254,6 +254,21 @@ def run_maintenance(settings=None, notify: Optional[Callable[[str], None]] = Non
     except Exception:  # noqa: BLE001
         pass
 
+    # 6. Memory consolidation (expiry sweep, duplicate merge, drift count)
+    try:
+        from . import consolidate
+        summary = consolidate.consolidate()
+        if summary["expired_quarantined"] or summary["dupes_merged"]:
+            fixes.append(f"memory: {summary['expired_quarantined']} expired, "
+                         f"{summary['dupes_merged']} duplicates merged")
+        if summary["stale_model_facts"]:
+            checks.append(("memory", f"{summary['stale_model_facts']} stale "
+                                     f"model-facts drifting"))
+        else:
+            checks.append(("memory", "clean"))
+    except Exception:  # noqa: BLE001
+        pass
+
     now = time.time()
     state.update({"last_run_epoch": now,
                   "last_run_iso": time.strftime("%Y-%m-%dT%H:%M:%S",
