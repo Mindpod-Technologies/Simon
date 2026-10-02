@@ -56,3 +56,8 @@ rules:
   - tool: mcp_stripe_*
     verdict: deny
     reason: payment operations are disabled in this deployment
+
+  # Customer provisioning — creates cloud resources and spends money.
+  - tool: provision_customer
+    verdict: approve
+    reason: "provision a new customer instance — {customer} ({template})"

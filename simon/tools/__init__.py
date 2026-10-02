@@ -259,6 +259,15 @@ def build_default_registry(settings, exclude: set[str] | None = None) -> ToolReg
     except Exception as exc:  # noqa: BLE001
         log.warning("vm tools unavailable: %s", exc)
 
+    # Fleet/provisioning (Simon Cloud per-customer instances) — the
+    # Agent-Zero pipeline. provision_customer is approval-gated.
+    try:
+        from . import fleet_tool
+
+        fleet_tool.register_fleet_tools(registry, settings)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("fleet tools unavailable: %s", exc)
+
     if getattr(settings, "google_calendar_ics", ""):
         try:
             from . import calendar_tool
